@@ -36,6 +36,8 @@ static int cursor_row = 0;
 static int cursor_col = 0;
 static uint8_t current_color = COLOR_WHITE_ON_BLACK;
 
+/// @brief 
+/// @param  
 static void update_cursor(void)
 {
     uint16_t pos = cursor_row * VGA_COLS + cursor_col;
@@ -45,6 +47,8 @@ static void update_cursor(void)
     outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
 }
 
+/// @brief 
+/// @param  
 static void scroll(void)
 {
     volatile uint16_t *vga = VGA_BASE;
@@ -59,6 +63,10 @@ static void scroll(void)
     cursor_row = VGA_ROWS - 1;
 }
 
+/// @brief Convert integer into ASCII code
+/// @param n 
+/// @param buf 
+/// @param base 
 static void itoa(uint32_t n, char *buf, int base)
 {
     const char digits[] = "0123456789ABCDEF";
@@ -84,12 +92,16 @@ static void itoa(uint32_t n, char *buf, int base)
     buf[j] = '\0';
 }
 
+/// @brief 
+/// @param  
 static void draw_line(void)
 {
     for (int i = 0; i < VGA_COLS; i++)
         vga_putchar('-');
 }
 
+/// @brief 
+/// @param out 
 static void get_cpu_vendor(char *out) {
     uint32_t ebx, ecx, edx;
 
@@ -166,6 +178,8 @@ static uint32_t find_ntfs_partition_lba(void)
     return best_lba;
 }
 
+/// @brief 
+/// @param  
 void vga_clear(void)
 {
     volatile uint16_t *vga = VGA_BASE;
@@ -176,6 +190,8 @@ void vga_clear(void)
     update_cursor();
 }
 
+/// @brief 
+/// @param c 
 void vga_putchar(char c)
 {
     volatile uint16_t *vga = VGA_BASE;
@@ -227,12 +243,18 @@ void vga_putchar(char c)
     update_cursor();
 }
 
+/// @brief 
+/// @param s 
 void vga_puts(const char *s)
 {
     while (*s)
         vga_putchar(*s++);
 }
 
+/// @brief 
+/// @param row 
+/// @param col 
+/// @param c 
 void vga_putchar_at(int row, int col, char c)
 {
     volatile uint16_t *vga = VGA_BASE;
@@ -246,6 +268,8 @@ void vga_putchar_at(int row, int col, char c)
     vga[row * VGA_COLS + col] = (uint8_t)c | ((uint16_t)current_color << 8);
 }
 
+/// @brief 
+/// @param art 
 void vga_draw_centered_ascii(const char *art)
 {
     int lines = 1;
@@ -310,7 +334,7 @@ void vga_set_color(uint8_t color)
 }
 
 /// @brief Print integer in decimal representation
-/// @param n 
+/// @param n Integer value
 void vga_put_dec(uint32_t n)
 {
     char buf[16];

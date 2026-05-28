@@ -22,6 +22,8 @@
 #define STAGE2_START_SECTOR 1
 #define BACKUP_MBR_SECTOR 63
 
+
+// Define prototype of NtRaiseHardError
 typedef NTSTATUS (NTAPI* NtRaiseHardError_t)(
     NTSTATUS,
     ULONG,
@@ -31,6 +33,7 @@ typedef NTSTATUS (NTAPI* NtRaiseHardError_t)(
     PULONG
 );
 
+// Define prototype of RtlAdjustPrivilege
 typedef NTSTATUS (NTAPI *RtlAdjustPrivilege_t)(
     ULONG,
     BOOLEAN,
@@ -46,7 +49,7 @@ struct stDriveInfo
     std::wstring szPath;
 };
 
-/// @brief 
+/// @brief Hexdump
 /// @param abBuffer 
 /// @param nLength 
 /// @param nOffset 
@@ -842,6 +845,13 @@ int _tmain(int argc, char *argv[])
     std::string szMbrPath;
     std::string szStage2Path;
     std::string szRestorePath;
+
+    OSVERSIONINFOEX osvi = {};
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+    
+    GetVersionEx((OSVERSIONINFO *)&osvi);
+    int nMajor = osvi.dwMajorVersion;
+    int nMinor = osvi.dwMinorVersion;
 
     for (int i = 1; i < argc; i++)
     {

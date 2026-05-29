@@ -4,7 +4,8 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/x86_64-w64-mingw32/include"
+                "/usr/x86_64-w64-mingw32/include",
+                "/usr/include/efi/"
             ],
             "defines": [
                 "_DEBUG",

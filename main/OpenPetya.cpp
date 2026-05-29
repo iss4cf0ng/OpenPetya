@@ -22,6 +22,12 @@
 #define STAGE2_START_SECTOR 1
 #define BACKUP_MBR_SECTOR 63
 
+enum enWindowsVersion
+{
+    Windows7,
+    Windows8,
+    Windows10,
+};
 
 // Define prototype of NtRaiseHardError
 typedef NTSTATUS (NTAPI* NtRaiseHardError_t)(
@@ -95,6 +101,31 @@ ULONG fnHexdump(const uint8_t* abBuffer, size_t nLength, size_t nOffset = 0)
     return nResult;
 }
 
+/// @brief 
+/// @param nMajor 
+/// @param nMinor 
+/// @return 
+DWORD fnGetWindowsVersion(int nMajor, int nMinor)
+{
+    if (nMajor == 10)
+    {
+        return enWindowsVersion::Windows10;
+    }
+    else if (nMajor == 6)
+    {
+        if (nMinor == 3 || nMinor == 2)
+        {
+            return enWindowsVersion::Windows8;
+        }
+        else if (nMinor == 1)
+        {
+            return enWindowsVersion::Windows7;
+        }
+    }
+
+    return -1;
+}
+
 /// @brief Disk handling class
 class clsDiskHandle
 {
@@ -109,6 +140,10 @@ public:
             CloseHandle(m_hFile);
     }
 
+    /// @brief Open file
+    /// @param szPath Destination path
+    /// @param bWriteAccess Enable Read and Write
+    /// @return 
     bool fnbOpen(const std::wstring& szPath, bool bWriteAccess)
     {
         DWORD dwAccess = bWriteAccess ? GENERIC_READ | GENERIC_WRITE : GENERIC_READ;
@@ -136,6 +171,11 @@ public:
         return true;
     }
 
+    /// @brief Read specified sector
+    /// @param nLBA 
+    /// @param nCount 
+    /// @param abBuffer 
+    /// @return 
     bool fnbReadSectors(LONGLONG nLBA, DWORD nCount, std::vector<uint8_t>& abBuffer)
     {
         LARGE_INTEGER nOffset;
@@ -158,6 +198,10 @@ public:
         return true;
     }
 
+    /// @brief 
+    /// @param nLBA 
+    /// @param abBuffer 
+    /// @return 
     bool fnbWriteSectors(LONGLONG nLBA, const std::vector<uint8_t>& abBuffer)
     {
         LARGE_INTEGER nOffset;
@@ -250,7 +294,7 @@ std::vector<stDriveInfo> fnListDrives()
     return lsDrives;
 }
 
-/// @brief 
+/// @brief Print all drives
 /// @param lsDrives 
 void fnPrintDrives(const std::vector<stDriveInfo>& lsDrives)
 {
@@ -267,9 +311,9 @@ void fnPrintDrives(const std::vector<stDriveInfo>& lsDrives)
     }
 }
 
-/// @brief 
-/// @param szPath 
-/// @param abBuffer 
+/// @brief Read specified file
+/// @param szPath File path
+/// @param abBuffer return file buffer
 /// @return 
 bool fnbReadFile(const std::string& szPath, std::vector<uint8_t>& abBuffer)
 {
@@ -302,7 +346,7 @@ void fnPadToSector(std::vector<uint8_t>& abBuffer)
         abBuffer.resize(abBuffer.size() + SECTOR_SIZE - rem, 0);
 }
 
-/// @brief 
+/// @brief Validate file
 /// @param abMBR 
 /// @return 
 bool fnbValidateMBR(const std::vector<uint8_t>& abMBR)
@@ -486,7 +530,7 @@ bool fnbWriteStage2(const std::wstring& szDrivePath, const std::string& szStage2
     return true;
 }
 
-/// @brief 
+/// @brief Restore MBR from disk
 /// @param szDrivePath 
 /// @param szBackupFile 
 /// @return 
@@ -585,7 +629,7 @@ bool fnbValidate(const std::wstring& szDrivePath)
 /// @return 
 bool fnbConfirm(const std::string& szMsg)
 {
-    std::cout << "\n " << szMsg << " (yes/no): ";
+    std::cout << "\n" << szMsg << " (yes/no): ";
     std::string szAns;
     std::getline(std::cin, szAns);
 

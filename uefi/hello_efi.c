@@ -1,4 +1,4 @@
-// hello_efi.cpp
+// hello_efi.c
 
 #include <efi.h>
 #include <efilib.h>

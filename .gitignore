@@ -2,6 +2,7 @@ build
 release
 
 *.o
+*.so
 *.bin
 *.img
 *.exe

@@ -41,7 +41,7 @@ EFI_STATUS init_disk(EFI_HANDLE image)
     return g_blkio ? EFI_SUCCESS : EFI_NOT_FOUND;
 }
 
-EFI_STATUS disk_read(UINT32 lba, UINT32 count, void *buffer)
+EFI_STATUS ntfs_read(UINT32 lba, UINT32 count, void *buffer)
 {
     EFI_STATUS status = uefi_call_wrapper(
         g_blkio->ReadBlocks,
@@ -62,7 +62,7 @@ EFI_STATUS disk_read(UINT32 lba, UINT32 count, void *buffer)
     return status;
 }
 
-EFI_STATUS disk_write(UINT32 lba, UINT32 count, void *buffer)
+EFI_STATUS ntfs_write(UINT32 lba, UINT32 count, void *buffer)
 {
     EFI_STATUS status = uefi_call_wrapper(
         g_blkio->WriteBlocks,
@@ -77,4 +77,23 @@ EFI_STATUS disk_write(UINT32 lba, UINT32 count, void *buffer)
     uefi_call_wrapper(g_blkio->FlushBlocks, 1, g_blkio);
 
     return status;
+}
+
+EFI_STATUS ntfs_find_first_partitionLBA(void)
+{
+    uint8_t mbr_buffer[512];
+    EFI_STATUS status = ntfs_read(0, 1, mbr_buffer);
+    if (EFI_ERROR(status))
+    {
+        Print(L"Cannot read MBR");
+        return status;
+    }
+
+    if (mbr_buffer[510] != 0x55 || mbr_buffer[511] != 0xAA)
+    {
+        Print(L"Invalid MBR signature!\n");
+        return EFI_NOT_READY;
+    }
+
+    
 }

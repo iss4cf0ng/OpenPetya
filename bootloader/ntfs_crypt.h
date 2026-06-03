@@ -37,8 +37,14 @@ int ntfs_mft_decrypt(const char *password, uint32_t partition_lba);
 /// @return 
 int ntfs_generate_salt(void);
 
+/// @brief 
+/// @param key 
+/// @return 
 int validate_save_tag(const uint8_t key[32]);
 
+/// @brief 
+/// @param key 
+/// @return 
 int validate_check_key(const uint8_t key[32]);
 
 #endif

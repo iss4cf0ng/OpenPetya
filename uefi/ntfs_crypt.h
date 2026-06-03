@@ -1,4 +1,4 @@
-// ntfs_encrypt.h
+// ntfs_crypt.h
 
 #ifndef NTFS_CRYPT_H
 #define NTFS_CRYPT_H

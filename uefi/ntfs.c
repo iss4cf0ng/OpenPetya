@@ -79,7 +79,29 @@ EFI_STATUS ntfs_write(UINT32 lba, UINT32 count, void *buffer)
     return status;
 }
 
-EFI_STATUS ntfs_find_first_partitionLBA(void)
+int get_mft_lba(uint32_t partition_lba, uint32_t *mft_lba_out)
+{
+    static uint8_t vbr[512];
+    if (ntfs_read(partition_lba, 1, vbr) != 0)
+        return -1;
+
+    if (vbr[3] != 'N' || vbr[4] != 'T' || vbr[5] != 'F' || vbr[6] != 'S')
+    {
+        Print(L"Not NTFS!\n");
+        return -1;
+    }
+
+    uint8_t sectors_per_cluster = vbr[13];
+    uint64_t mft_cluster = 0;
+    for (int i = 0; i < 8; i++)
+        mft_cluster |= (uint64_t)vbr[i+48] << (i*8);
+
+    *mft_lba_out = (uint32_t)(partition_lba + mft_cluster * sectors_per_cluster);
+
+    return 0;
+}
+
+uint32_t ntfs_find_first_partitionLBA(void)
 {
     uint8_t mbr_buffer[512];
     EFI_STATUS status = ntfs_read(0, 1, mbr_buffer);
@@ -95,5 +117,36 @@ EFI_STATUS ntfs_find_first_partitionLBA(void)
         return EFI_NOT_READY;
     }
 
-    
+    uint32_t best_lba = 0;
+    uint32_t best_size = 0;
+
+    for (int i = 0 ; i < 4; i++)
+    {
+        uint8_t *entry = mbr_buffer + 0x1BE + i * 16;
+        uint8_t type = entry[4];
+        uint32_t lba = entry[8] | ((uint32_t)entry[9] << 8) | ((uint32_t)entry[10] << 16) | ((uint32_t)entry[11] << 24);
+        uint32_t size = entry[12] | ((uint32_t)entry[13] << 8) | ((uint32_t)entry[14] << 16) | ((uint32_t)entry[15] << 24);
+
+        if (type != 0x07) // 0x07 = NTFS/exFAT
+            continue;
+
+        Print(L"\tFound NTFS partition: LBA=%d size=%d\n", lba, size);
+
+        if (size > best_size)
+        {
+            best_size = size;
+            best_lba = lba;
+        }
+    }
+
+    if (best_lba == 0)
+    {
+        Print(L"No NTFS partition found!\n");
+    }
+    else
+    {
+        Print(L"Selected partition LBA=%d\n\n", best_lba);
+    }
+
+    return best_lba;
 }

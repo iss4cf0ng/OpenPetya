@@ -83,6 +83,8 @@ void readline(EFI_SYSTEM_TABLE *systab, CHAR16 *buffer, UINTN max)
     buffer[i] = L'\0';
 }
 
+/// @brief Encrypt MFT
+/// @param systab 
 void do_encryption(EFI_SYSTEM_TABLE *systab)
 {
     clear(systab);
@@ -94,6 +96,8 @@ void do_encryption(EFI_SYSTEM_TABLE *systab)
     }
 }
 
+/// @brief Login panel
+/// @param systab 
 void do_login(EFI_SYSTEM_TABLE *systab)
 {
     clear(systab);
@@ -101,6 +105,10 @@ void do_login(EFI_SYSTEM_TABLE *systab)
     
 }
 
+/// @brief main function
+/// @param image 
+/// @param systab 
+/// @return 
 EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
 {
     InitializeLib(image, systab);

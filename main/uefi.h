@@ -10,7 +10,9 @@
 #include <vector>
 #include <string>
 
+#include "utils.h"
 
+#define BOOT_DIR L"\\EFI\\Microsoft\\Boot\\";
 #define BOOTMGFW_PATH L":\\EFI\\Microsoft\\Boot\\botmgfw.efi"
 
 /// @brief Find first EFI System Partition (ESP)
@@ -26,15 +28,15 @@ std::wstring fnMountESP(int nIdxDrive);
 /// @param szLetter 
 void fnUnmountESP(const std::wstring& szLetter);
 
-/// @brief Install UEFL payload program
+/// @brief Install UEFL payload
 /// @param szSrcEfiPath 
 /// @param szPassword 
 /// @param szDrivePath 
 /// @param nTotalSectors 
 /// @return 
-bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::wstring& szPassword, const std::wstring& szDrivePath, UINT64 nTotalSectors);
+bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassword, const std::wstring& szDrivePath, UINT64 nTotalSectors);
 
-/// @brief Restore the original UEFI program
+/// @brief Restore the original UEFI
 /// @return 
 bool fnbRestoreUEFI();
 

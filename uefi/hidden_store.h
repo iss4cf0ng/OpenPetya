@@ -6,8 +6,7 @@
 #include <efi.h>
 #include <efilib.h>
 
-#define MFT_BACKUP_SECTORS 24
-#define HIDDEN_MAGIC 0x484F4C44UL // "HOLD"
+#include "config.h"
 
 typedef struct {
     uint32_t magic;

@@ -5,6 +5,7 @@ QEMU := qemu-system-i386
 
 MBR_DIR := mbr
 BL_DIR  := bootloader
+EFI_DIR := uefi
 BUILD   := build
 
 MBR_BIN  := $(BUILD)/mbr.bin

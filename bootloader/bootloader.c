@@ -2,6 +2,7 @@
 // Standard libraries are not available, so they have to be purely implemented
 
 #include "bootloader.h"
+#include "config.h"
 #include "io.h"
 #include "keyboard.h"
 #include "types.h"
@@ -12,9 +13,6 @@
 #include "hidden_store.h"
 #include "password_store.h"
 #include "petya.h"
-
-#define MAX_ATTEMPTS 3
-#define MAX_PW_LEN 32
 
 #define VGA_BASE ((volatile uint16_t *)0xB8000)
 #define VGA_COLS 80

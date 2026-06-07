@@ -7,11 +7,7 @@
 #include <efilib.h>
 
 #include "ntfs.h"
-
-#define PW_SECTOR 59
-#define PW_MAX_LEN 64
-
-#define PW_MAGIC 0x50415353UL // "PASS"
+#include "config.h"
 
 typedef struct 
 {

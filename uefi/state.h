@@ -6,11 +6,7 @@
 #include <efi.h>
 #include <efilib.h>
 
-#define STATE_SECTOR 60
-#define STATE_MAGIC 0x424F4F54UL
-
-#define STATE_NOT_SETUP 0x00
-#define STATE_ENCRYPTED 0x01
+#include "config.h"
 
 typedef struct {
     uint32_t magic;

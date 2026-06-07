@@ -8,7 +8,7 @@ int pwstore_read(char *buffer, int max_len)
 {
     if (ntfs_read(PW_SECTOR, 1, sector_buffer) != 0)
     {
-
+        Print(L"pwstore_read: NTFS read failed.\n");
         return -1;
     }
 

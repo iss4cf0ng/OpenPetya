@@ -3,6 +3,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+// ----------[ General ]----------
+
 #define MFT_SECTOR_COUNT 256
 
 #define MAX_ATTEMPTS 3
@@ -34,8 +36,6 @@
 
 #define SALT_SECTOR 62
 #define SALT_SIZE 16
-
-#define MFT_ENCRYPT_SECTORS 256
 
 #define KDF_ITERATIONS 1000
 

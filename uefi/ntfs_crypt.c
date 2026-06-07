@@ -130,7 +130,7 @@ int ntfs_mft_encrypt(const char *password, uint32_t partition_lba)
 
     uint8_t sector_buffer[512];
     uint8_t out_buffer[512];
-    for (uint32_t i = 0; i < MFT_ENCRYPT_SECTORS; i++)
+    for (uint32_t i = 0; i < MFT_SECTOR_COUNT; i++)
     {
         if (ntfs_read(mft_lba + i, 1, sector_buffer) != 0)
         {
@@ -212,7 +212,7 @@ int ntfs_mft_decrypt(const char *password, uint32_t partition_lba)
     static uint8_t sector_buffer[512];
     static uint8_t out_buffer[512];
 
-    for (uint32_t i = 0; i < MFT_ENCRYPT_SECTORS; i++)
+    for (uint32_t i = 0; i < MFT_SECTOR_COUNT; i++)
     {
         if (ntfs_read(mft_lba + i, 1, sector_buffer) != 0)
         {

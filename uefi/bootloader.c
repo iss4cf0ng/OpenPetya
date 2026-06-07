@@ -10,6 +10,7 @@
 #include "password_store.h"
 
 #include "config.h"
+#include "uefi_io.h"
 
 static EFI_SYSTEM_TABLE *gST = NULL;
 static EFI_BOOT_SERVICES *gBS = NULL;
@@ -20,16 +21,6 @@ static void do_halt(void)
 {
     for (;;)
         gBS->Stall(1000000);
-}
-
-static void uefi_print(const char *s)
-{
-    while (*s)
-    {
-        CHAR16 buffer[2] = { (CHAR16)*s, 0 };
-        gST->ConOut->OutputString(gST->ConOut, buffer);
-        s++;
-    }
 }
 
 static void uefi_reboot(void)
@@ -51,18 +42,6 @@ static void uefi_clear(void)
 static void uefi_set_color(UINTN fg, UINTN bg)
 {
     gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(fg, bg));
-}
-
-static int uefi_read_sector(UINT32 lba, void *buffer)
-{
-    EFI_STATUS status = gDisk->ReadBlocks(gDisk, gMediaId, (EFI_LBA)lba, 512, buffer);
-    return EFI_ERROR(status) ? -1 : 0;
-}
-
-static int uefi_write_sector(UINT32 lba, const void *buffer)
-{
-    EFI_STATUS status = gDisk->WriteBlocks(gDisk, gMediaId, (EFI_LBA)lba, 512, (void *)buffer);
-    return EFI_ERROR(status) ? -1 : 0;
 }
 
 static UINT32 uefi_find_ntfs_lba(void)
@@ -224,6 +203,8 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
         gBS->Stall(5000000);
         return EFI_NOT_FOUND;
     }
+
+    uefi_io_init(gDisk, gMediaId, systab);
 
     // read disk and branch
     UINT8 state_raw[512];

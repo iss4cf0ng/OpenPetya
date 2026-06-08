@@ -17,33 +17,6 @@ static EFI_BOOT_SERVICES *gBS = NULL;
 static EFI_BLOCK_IO *gDisk = NULL;
 static UINT32 gMediaId = 0;
 
-static void do_halt(void)
-{
-    for (;;)
-        gBS->Stall(1000000);
-}
-
-static void uefi_reboot(void)
-{
-    gRT->ResetSystem(EfiResetCold, EFI_SUCCESS, 0, NULL);
-    for (;;);
-}
-
-static void uefi_sleep_ms(UINTN ms)
-{
-    gBS->Stall(ms * 1000); // Stall takes microseconds
-}
-
-static void uefi_clear(void)
-{
-    gST->ConOut->ClearScreen(gST->ConOut);
-}
-
-static void uefi_set_color(UINTN fg, UINTN bg)
-{
-    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(fg, bg));
-}
-
 static UINT32 uefi_find_ntfs_lba(void)
 {
     UINT8 mbr[512];
@@ -135,7 +108,35 @@ void do_encryption(void)
 
     hidden_store_init(disk_size);
 
+    uefi_print("[1/6] Backing up MFT...\n");
+    if (hidden_backup_mft(partition_lba) != 0)
+    {
+        uefi_set_color(EFI_RED, EFI_BLACK);
+        uefi_print("ERROR: MFT backup is failed.\n");
 
+        uefi_halt();
+    }
+
+    uefi_print("[2/6] Generating salt...\n");
+    if (ntfs_generate_salt() != 0)
+    {
+        uefi_set_color(EFI_RED, EFI_BLACK);
+        uefi_print("ERROR: Salt generation failed!\n");
+
+        uefi_halt();
+    }
+
+    uefi_print("[3/6] Reading password...\n");
+
+
+    uefi_print("[4/6] Encrypting MFT...\n");
+
+
+    uefi_print("[5/6] Erasing password from disk...\n");
+
+
+    uefi_print("[6/6] Saving state...\n");
+    
 }
 
 /// @brief Login panel
@@ -204,7 +205,7 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
         return EFI_NOT_FOUND;
     }
 
-    uefi_io_init(gDisk, gMediaId, systab);
+    uefi_io_init(gDisk, gRT, gBS, gMediaId, systab);
 
     // read disk and branch
     UINT8 state_raw[512];

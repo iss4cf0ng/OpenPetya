@@ -7,6 +7,7 @@
 #include <efilib.h>
 
 #include "config.h"
+#include "uefi_io.h"
 
 typedef struct {
     uint32_t magic;

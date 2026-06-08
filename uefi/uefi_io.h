@@ -6,7 +6,7 @@
 #include <efi.h>
 #include <efilib.h>
 
-void uefi_io_init(EFI_BLOCK_IO *bio, UINT32 media_id, EFI_SYSTEM_TABLE *systab);
+void uefi_io_init(EFI_BLOCK_IO *bio, EFI_RUNTIME_SERVICES *rs, EFI_BOOT_SERVICES *bs, UINT32 media_id, EFI_SYSTEM_TABLE *systab);
 void uefi_halt(void);
 void uefi_set_color(UINTN fg, UINTN bg);
 void uefi_clear(void);
@@ -18,5 +18,6 @@ int uefi_write_sector(UINT32 lba, const void *buffer);
 int uefi_print(const char *s);
 void uefi_print_hex(UINT32 n);
 void uefi_print_dec(UINT32 n);
+void uefi_reboot(void);
 
 #endif

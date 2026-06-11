@@ -106,12 +106,48 @@ void uefi_clear(void)
     g_st->ConOut->ClearScreen(g_st->ConOut);
 }
 
-void uefi_set_color(UINTN fg, UINTN bg)
+void uefi_set_color(UINTN fore_color, UINTN back_color)
 {
-    g_st->ConOut->SetAttribute(g_st->ConOut, EFI_TEXT_ATTR(fg, bg));
+    g_st->ConOut->SetAttribute(g_st->ConOut, EFI_TEXT_ATTR(fore_color, back_color));
 }
 
 void uefi_sleep_ms(UINTN ms)
 {
     g_bs->Stall(ms * 1000); // Stall takes microseconds
+}
+
+void uefi_read_password(char *buffer, int max_len)
+{
+    int i = 0;
+    while (i < max_len - 1)
+    {
+        // Wait for a key
+        g_bs->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+
+        EFI_INPUT_KEY key;
+        EFI_STATUS status = gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
+        if (EFI_ERROR(status))
+            continue;
+
+        if (key.UnicodeChar == L'\r' || key.UnicodeChar == L'\n')
+        {
+            uefi_print("\n");
+            break;
+        }
+
+        if (key.UnicodeChar == L'\b' && i > 0)
+        {
+            uefi_print("\b \b");
+            i--;
+
+            break;
+        }
+
+        if (key.UnicodeChar < 32 || key.UnicodeChar > 126)
+            continue;
+
+        uefi_print("*");
+    }
+
+    buffer[i] = '\0';
 }

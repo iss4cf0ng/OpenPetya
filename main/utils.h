@@ -58,7 +58,7 @@ bool fnbFileExists(const std::wstring& szPath);
 /// @param nLength 
 /// @param nOffset 
 /// @return 
-ULONG fnHexdump(const uint8_t* abBuffer, size_t nLength, size_t nOffset = 0);
+ULONG fnHexdump(const uint8_t* abBuffer, size_t nLength, size_t nOffset);
 
 /// @brief 
 /// @param nMajor 

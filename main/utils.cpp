@@ -142,7 +142,7 @@ DWORD fnGetWindowsVersion(int nMajor, int nMinor)
 {
     if (nMajor == 10)
     {
-        return OS_Windows10
+        return OS_Windows10;
     }
     else if (nMajor == 6)
     {

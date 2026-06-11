@@ -12,58 +12,6 @@
 #include "config.h"
 #include "uefi_io.h"
 
-static EFI_SYSTEM_TABLE *gST = NULL;
-static EFI_BOOT_SERVICES *gBS = NULL;
-static EFI_BLOCK_IO *gDisk = NULL;
-static UINT32 gMediaId = 0;
-
-static UINT32 uefi_find_ntfs_lba(void)
-{
-    UINT8 mbr[512];
-    UINT32 best_lba = 0;
-    UINT32 best_size = 0;
-
-
-
-    return best_lba;
-}
-
-static void uefi_read_password(char *buffer, int max_len)
-{
-    int i = 0;
-    while (i < max_len - 1)
-    {
-        // Wait for a key
-        gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
-
-        EFI_INPUT_KEY key;
-        EFI_STATUS status = gST->ConIn->ReadKeyStroke(gST->ConIn, &key);
-        if (EFI_ERROR(status))
-            continue;
-
-        if (key.UnicodeChar == L'\r' || key.UnicodeChar == L'\n')
-        {
-            uefi_print("\n");
-            break;
-        }
-
-        if (key.UnicodeChar == L'\b' && i > 0)
-        {
-            uefi_print("\b \b");
-            i--;
-
-            break;
-        }
-
-        if (key.UnicodeChar < 32 || key.UnicodeChar > 126)
-            continue;
-
-        uefi_print("*");
-    }
-
-    buffer[i] = '\0';
-}
-
 void zero_buffer(char *buffer, int len)
 {
     for (int i = 0; i < len; i++)
@@ -93,17 +41,17 @@ void do_encryption(void)
         uefi_set_color(EFI_RED, EFI_BLACK);
         uefi_print("ERROR: Disk size not set by installer.\n");
 
-        do_halt();
+        uefi_halt();
     }
 
     uefi_print("Detecting NTFS partition...\n");
-    partition_lba = uefi_find_ntfs_lba();
+    partition_lba = ntfs_find_first_partitionLBA();
     if (partition_lba == 0)
     {
         uefi_set_color(EFI_RED, EFI_BLACK);
         uefi_print("ERROR: No NTFS partition found!\n");
 
-        do_halt();
+        uefi_halt();
     }
 
     hidden_store_init(disk_size);
@@ -127,24 +75,55 @@ void do_encryption(void)
     }
 
     uefi_print("[3/6] Reading password...\n");
+    if (pwstore_read(password, sizeof(password)) != 0)
+    {
+        uefi_set_color(EFI_RED, EFI_BLACK);
+        uefi_print("ERROR: No password in sector 59.\n");
 
+        uefi_halt();
+    }
 
     uefi_print("[4/6] Encrypting MFT...\n");
+    if (ntfs_mft_encrypt(password, partition_lba) != 0)
+    {
+        zero_buffer(password, sizeof(password));
+        uefi_set_color(EFI_RED, EFI_BLACK);
+        uefi_print("ERROR: MFT encryption is failed.\n");
 
+        uefi_halt();
+    }
+
+    zero_buffer(password, sizeof(password));
 
     uefi_print("[5/6] Erasing password from disk...\n");
-
+    pwstore_erase();
 
     uefi_print("[6/6] Saving state...\n");
+    if (state_write(STATE_ENCRYPTED) != 0)
+    {
+        uefi_set_color(EFI_RED, EFI_BLACK);
+        uefi_print("ERROR: State save failed.\n");
+
+        uefi_halt();
+    }
+
+    uefi_set_color(EFI_GREEN, EFI_BLACK);
+    uefi_print("\nSetup is completed! Rebooting in 3 seconds...\n");
     
+    uefi_sleep_ms(3000);
+    uefi_reboot();
 }
 
 /// @brief Login panel
 /// @param systab 
 void do_login(void)
 {
-    UINT32 partition_lba;
-    
+    UINT32 partition_lba = 0;
+    UINT64 disk_size = 0;
+    char input[65] = { 0 };
+    int attempts = 0;
+
+    uefi_clear();
 }
 
 /// @brief main function
@@ -155,9 +134,11 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
 {
     EFI_STATUS status;
 
-    gST = systab;
-    gBS = systab->BootServices;
-    gRT = systab->RuntimeServices;
+    EFI_SYSTEM_TABLE *st = systab;
+    EFI_BOOT_SERVICES *bs = systab->BootServices;
+    EFI_RUNTIME_SERVICES *rs = systab->RuntimeServices;
+    EFI_BLOCK_IO *bi = NULL;
+    UINT32 media_id = 0;
 
     InitializeLib(image, systab);
 
@@ -165,7 +146,7 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
     EFI_HANDLE *handles = NULL;
     EFI_GUID bio_guid = EFI_BLOCK_IO_PROTOCOL_GUID;
 
-    status = gBS->LocateHandleBuffer(ByProtocol, &bio_guid, NULL, &handle_count, &handles);
+    status = bs->LocateHandleBuffer(ByProtocol, &bio_guid, NULL, &handle_count, &handles);
 
     if (EFI_ERROR(status))
     {
@@ -176,7 +157,7 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
     for (UINTN i = 0; i < handle_count; i++)
     {
         EFI_BLOCK_IO *bio = NULL;
-        status = gBS->HandleProtocol(handles[i], &bio_guid, (void **)&bio);
+        status = bs->HandleProtocol(handles[i], &bio_guid, (void **)&bio);
         if (EFI_ERROR(status))
             continue;
         if (!bio->Media->MediaPresent)
@@ -191,21 +172,21 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
         if (magic == STATE_MAGIC)
         {
             // found the disk
-            gDisk = bio;
-            gMediaId = bio->Media->MediaId;
+            bi = bio;
+            media_id = bio->Media->MediaId;
             break;
         }
     }
 
-    gBS->FreePool(handles);
-    if (!gDisk)
+    bs->FreePool(handles);
+    if (!bi)
     {
         uefi_print("Cannot find the disk! (no state sector magic)\n");
-        gBS->Stall(5000000);
+        bs->Stall(5000000);
         return EFI_NOT_FOUND;
     }
 
-    uefi_io_init(gDisk, gRT, gBS, gMediaId, systab);
+    uefi_io_init(bi, rs, bs, media_id, systab);
 
     // read disk and branch
     UINT8 state_raw[512];
@@ -227,16 +208,16 @@ EFI_STATUS efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
     EFI_DEVICE_PATH *dp = FileDevicePath(NULL, original_path);
     EFI_HANDLE new_image = NULL;
 
-    status = gBS->LoadImage(FALSE, image, dp, NULL, 0, &new_image);
+    status = bs->LoadImage(FALSE, image, dp, NULL, 0, &new_image);
     if (EFI_ERROR(status))
     {
         uefi_print("Cannot load bootmgfw_original.efi!\n");
-        gBS->Stall(5000000);
+        bs->Stall(5000000);
 
         return status;
     }
 
-    status = gBS->StartImage(new_image, NULL, NULL);
+    status = bs->StartImage(new_image, NULL, NULL);
 
     return status;
 

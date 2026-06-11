@@ -44,7 +44,7 @@ std::wstring fnMountESP(int nIdxDrive)
 
             // check if it worked
             std::wstring szTest = szLetter + BOOTMGFW_PATH;
-            if (INVALID_FILE_ATTRIBUTES != GetFileAttributes(szTest.c_str()))
+            if (INVALID_FILE_ATTRIBUTES != GetFileAttributesW(szTest.c_str()))
             {
                 printf("ESP is mounted at %ls\n", szLetter.c_str());
                 return szLetter;

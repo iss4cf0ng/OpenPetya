@@ -1,7 +1,7 @@
-// petya.h
+// config.h
 
-#ifndef PETYA_H
-#define PETYA_H
+#ifndef CONFIG_H
+#define CONFIG_H
 
 #include <windows.h>
 #include <winioctl.h>

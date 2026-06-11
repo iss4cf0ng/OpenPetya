@@ -13,7 +13,7 @@
 #include "utils.h"
 
 #define BOOT_DIR L"\\EFI\\Microsoft\\Boot\\";
-#define BOOTMGFW_PATH L":\\EFI\\Microsoft\\Boot\\botmgfw.efi"
+#define BOOTMGFW_PATH L":\\EFI\\Microsoft\\Boot\\bootmgfw.efi"
 
 /// @brief Find first EFI System Partition (ESP)
 /// @return 

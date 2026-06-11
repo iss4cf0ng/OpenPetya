@@ -7,7 +7,7 @@
 #include <fstream>
 #include <string>
 
-#include "petya.h"
+#include "config.h"
 
 #define OS_Windows7 0x01
 #define OS_Windows8 0x02

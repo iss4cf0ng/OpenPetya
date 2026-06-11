@@ -35,7 +35,7 @@ What is CAN'T do:
 #include <cstring>
 #include <tchar.h>
 
-#include "petya.h"
+#include "config.h"
 #include "utils.h"
 #include "uefi.h"
 
@@ -705,7 +705,7 @@ void fnPrintUsage(const char* szProg)
 
                 << "\nTools:\n"
                 << "\t--validate                        Show disk state\n"
-                << "\t--bsod                            Raise BSOD via NtRaiseHardError()"
+                << "\t--bsod                            Raise BSOD via NtRaiseHardError()\n"
                 << "\t--list                            List physical drives\n"
                 << "\t--drive N                         Select PhysicalDriveN\n"
 

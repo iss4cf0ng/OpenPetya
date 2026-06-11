@@ -8,7 +8,7 @@ std::wstring fnFindESP()
 {
     for (wchar_t c = L'A'; c <= L'Z'; c++)
     {
-        std::wstring szPath = std::wstring(1, c) + L":" + BOOTMGFW_PATH;
+        std::wstring szPath = std::wstring(1, c) + BOOTMGFW_PATH;
         if (INVALID_FILE_ATTRIBUTES != GetFileAttributesW(szPath.c_str()))
             return std::wstring(1, c) + L":";
     }
@@ -25,7 +25,6 @@ std::wstring fnMountESP(int nIdxDrive)
         if (DRIVE_NO_ROOT_DIR != GetDriveTypeW((szLetter + L"\\").c_str()))
             continue;   // letter already in use
 
-        // Fixed: removed extra ":" — szLetter is already "Z:"
         std::wstring szCmd = L"cmd.exe /c mountvol " + szLetter + L" /S";
 
         STARTUPINFOW si = {};
@@ -37,8 +36,7 @@ std::wstring fnMountESP(int nIdxDrive)
         std::vector<wchar_t> buffer(szCmd.begin(), szCmd.end());
         buffer.push_back(0);
 
-        if (CreateProcessW(nullptr, buffer.data(), nullptr, nullptr,
-                FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+        if (CreateProcessW(nullptr, buffer.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
         {
             WaitForSingleObject(pi.hProcess, 5000);
             CloseHandle(pi.hProcess);

@@ -678,7 +678,7 @@ void fnPrintBanner()
     "`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-' 
         )" << std::endl;
 
-    std::cout << "OpenPetya v1.0.0" << std::endl;
+    std::cout << "OpenPetya v2.0.0" << std::endl;
     std::cout << "Author: iss4cf0ng/ISSAC" << std::endl;
     std::cout << "GitHub: https://github.com/iss4cf0ng/OpenPetya/" << std::endl;
 }
@@ -707,6 +707,8 @@ void fnPrintUsage(const char* szProg)
                 << "\t--validate                        Show disk state\n"
                 << "\t--bsod                            Raise BSOD via NtRaiseHardError()\n"
                 << "\t--list                            List physical drives\n"
+
+                << "\nExploit:\n"
                 << "\t--drive N                         Select PhysicalDriveN\n"
 
                 << "\nExamples:\n"

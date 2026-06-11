@@ -6,3 +6,4 @@ release
 *.bin
 *.img
 *.exe
+*.efi

@@ -1,56 +1,74 @@
-# Makefile for UEFI bootloader
-
 CC      := gcc
 LD      := ld
 OBJCOPY := objcopy
 
+EFI_PREFIX := /usr/lib
+
 EFI_INCLUDES := -I/usr/include/efi -I/usr/include/efi/x86_64
-EFI_LIBS     := -L/usr/lib -lefi -lgnuefi
-EFI_LDS      := /usr/lib/elf_x86_64_efi.lds
-EFI_CRT      := /usr/lib/crt0-efi-x86_64.o
+
+EFI_LIBS := -L$(EFI_PREFIX) -lefi -lgnuefi
+EFI_LDS  := $(EFI_PREFIX)/elf_x86_64_efi.lds
+EFI_CRT  := $(EFI_PREFIX)/crt0-efi-x86_64.o
 
 CFLAGS := $(EFI_INCLUDES) \
-          -fpic -ffreestanding -fno-stack-protector \
-          -fno-stack-check -fshort-wchar -mno-red-zone \
-          -maccumulate-outgoing-args
+          -DEFI_FUNCTION_WRAPPER \
+          -fpic \
+          -ffreestanding \
+          -fno-stack-protector \
+          -fno-stack-check \
+          -fshort-wchar \
+          -mno-red-zone \
+          -maccumulate-outgoing-args \
+          -Wall -Wextra \
+          -O2
 
-LDFLAGS := -nostdlib -znocombreloc \
+LDFLAGS := -nostdlib \
+           -znocombreloc \
            -shared -Bsymbolic \
            -T $(EFI_LDS) \
            --defsym=EFI_SUBSYSTEM=10
 
-TARGET  := bootloader
-SRCS    := bootloader.c ntfs.c salsa20.c kdf.c
-OBJS    := $(SRCS:.c=.o)
+TARGET := bootloader
 
-IMG     := uefi_test.img
-MOUNT   := /tmp/efi_mount
-QEMU    := qemu-system-x86_64
-OVMF    := /usr/share/ovmf/OVMF.fd
+SRCS := bootloader.c uefi_io.c ntfs.c ntfs_crypt.c \
+        state.c hidden_store.c password_store.c \
+        salsa20.c kdf.c
 
-.PHONY: all build img clean run install-deps
+OBJS := $(SRCS:.c=.o)
+
+IMG   := uefi_test.img
+MOUNT := /tmp/efi_mount
+QEMU  := qemu-system-x86_64
+OVMF  := /usr/share/ovmf/OVMF.fd
+
+.PHONY: all build img run run-debug clean install-deps check
 
 all: build
-	@echo "[+] Build complete. Run: sudo make img && make run"
 
 build: $(TARGET).efi
+	@echo "[+] Build complete"
 
 %.o: %.c
+	@echo "[*] CC $<"
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET).so: $(OBJS)
-	$(LD) $(LDFLAGS) $(EFI_CRT) $^ -o $@ $(EFI_LIBS)
+	@echo "[*] Linking EFI ELF..."
+	$(LD) $(LDFLAGS) $(EFI_CRT) $(OBJS) -o $@ $(EFI_LIBS)
 
 $(TARGET).efi: $(TARGET).so
+	@echo "[*] Converting to EFI binary..."
 	$(OBJCOPY) \
-		-j .text -j .sdata -j .data -j .dynamic \
-		-j .dynsym -j .rel -j .rela -j .reloc \
+		-j .text -j .sdata -j .data \
+		-j .dynamic -j .dynsym \
+		-j .rel -j .rela -j .reloc \
 		--target=efi-app-x86_64 \
 		$< $@
-	@echo "[+] Built: $@"
+	@echo "[+] EFI built: $@"
 
 img: $(TARGET).efi
-	@[ "$$(id -u)" = "0" ] || (echo "[-] Run: sudo make img" && exit 1)
+	@[ "$$(id -u)" = "0" ] || (echo "Run: sudo make img" && exit 1)
+
 	@echo "[*] Creating disk image..."
 
 	dd if=/dev/zero of=$(IMG) bs=1M count=64 2>/dev/null
@@ -69,31 +87,30 @@ img: $(TARGET).efi
 	cp $(TARGET).efi $(MOUNT)/EFI/BOOT/BOOTX64.EFI; \
 	umount $(MOUNT); \
 	losetup -d $$LOOP; \
-	echo "[+] ESP ready."
-
-	@python3 -c "\
-	import struct,sys; \
-	s=bytearray(512); \
-	struct.pack_into('<I',s,0,0x424F4F54); \
-	s[4]=0x00; \
-	struct.pack_into('<Q',s,8,64*1024*2); \
-	sys.stdout.buffer.write(bytes(s))" \
-	| dd of=$(IMG) seek=60 bs=512 count=1 conv=notrunc 2>/dev/null
-
-	@echo "[+] Disk image ready: $(IMG)"
+	echo "[+] ESP ready"
 
 run: $(IMG)
 	$(QEMU) \
 		-bios $(OVMF) \
 		-drive file=$(IMG),format=raw \
 		-m 256M \
-		-display gtk \
-		-serial null \
-		-monitor none
+		-display gtk
+
+run-debug: $(IMG)
+	$(QEMU) \
+		-bios $(OVMF) \
+		-drive file=$(IMG),format=raw \
+		-m 256M \
+		-s -S \
+		-display gtk
 
 install-deps:
-	sudo apt install -y ovmf gnu-efi parted
+	sudo apt install -y ovmf gnu-efi parted dosfstools
+
+check: $(TARGET).efi
+	file $(TARGET).efi
+	objdump -p $(TARGET).efi | head
 
 clean:
 	rm -f $(OBJS) $(TARGET).so $(TARGET).efi $(IMG)
-	@echo "[+] Cleaned."
+	@echo "[+] Cleaned"

@@ -18,14 +18,21 @@ std::wstring fnFindESP()
 
 std::wstring fnMountESP(int nIdxDrive)
 {
+    // First, print what drives are available for diagnosis
+    printf("[*] Scanning for free drive letters...\n");
+
     for (wchar_t c = L'Z'; c >= L'D'; c--)
     {
         std::wstring szLetter = std::wstring(1, c) + L":";
+        UINT type = GetDriveTypeW((szLetter + L"\\").c_str());
 
-        if (DRIVE_NO_ROOT_DIR != GetDriveTypeW((szLetter + L"\\").c_str()))
-            continue;   // letter already in use
+        if (type != DRIVE_NO_ROOT_DIR)
+            continue;
+
+        printf("[*] Trying letter %ls...\n", szLetter.c_str());
 
         std::wstring szCmd = L"cmd.exe /c mountvol " + szLetter + L" /S";
+        printf("[*] Command: %ls\n", szCmd.c_str());
 
         STARTUPINFOW si = {};
         PROCESS_INFORMATION pi = {};
@@ -36,22 +43,43 @@ std::wstring fnMountESP(int nIdxDrive)
         std::vector<wchar_t> buffer(szCmd.begin(), szCmd.end());
         buffer.push_back(0);
 
-        if (CreateProcessW(nullptr, buffer.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+        if (CreateProcessW(nullptr, buffer.data(), nullptr, nullptr,
+                FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
         {
             WaitForSingleObject(pi.hProcess, 5000);
+            DWORD exit_code = 0;
+            GetExitCodeProcess(pi.hProcess, &exit_code);
+            printf("[*] mountvol exit code: %lu\n", exit_code);
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
         }
 
-        // Check if mount succeeded
         std::wstring szTest = szLetter + L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi";
+        printf("[*] Checking: %ls\n", szTest.c_str());
+
         if (INVALID_FILE_ATTRIBUTES != GetFileAttributesW(szTest.c_str()))
         {
             printf("[+] ESP mounted at %ls\n", szLetter.c_str());
             return szLetter;
         }
+
+        printf("[!] Not found at %ls, trying next...\n", szTest.c_str());
+
+        // Unmount failed attempt before trying next letter
+        std::wstring szUnmount = L"cmd.exe /c mountvol " + szLetter + L" /D";
+        std::vector<wchar_t> ubuf(szUnmount.begin(), szUnmount.end());
+        ubuf.push_back(0);
+        STARTUPINFOW si2 = {}; si2.cb = sizeof(si2);
+        PROCESS_INFORMATION pi2 = {};
+        if (CreateProcessW(nullptr, ubuf.data(), nullptr, nullptr,FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si2, &pi2))
+        {
+            WaitForSingleObject(pi2.hProcess, 2000);
+            CloseHandle(pi2.hProcess);
+            CloseHandle(pi2.hThread);
+        }
     }
 
+    printf("[-] All letters exhausted, ESP not found.\n");
     return L"";
 }
 

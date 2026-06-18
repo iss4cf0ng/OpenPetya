@@ -6,7 +6,6 @@ static EFI_BLOCK_IO *g_bio = NULL;
 static EFI_BOOT_SERVICES *g_bs = NULL;
 static UINT32 g_media_id = 0;
 static EFI_SYSTEM_TABLE *g_st = NULL;
-static EFI_BOOT_SERVICES *g_bs = NULL;
 static EFI_RUNTIME_SERVICES *g_rs = NULL;
 
 void uefi_io_init(EFI_BLOCK_IO *bio, EFI_RUNTIME_SERVICES *rs, EFI_BOOT_SERVICES *bs, UINT32 media_id, EFI_SYSTEM_TABLE *systab)

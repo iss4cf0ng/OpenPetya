@@ -6,6 +6,7 @@ x86_64-w64-mingw32-g++ \
     ./main/config.cpp \
     ./main/utils.cpp \
     ./main/uefi.cpp \
+    ./main/logs.cpp \
     -o ./main/OpenPetya.exe \
     -lsetupapi \
     -static

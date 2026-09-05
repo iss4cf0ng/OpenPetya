@@ -3,6 +3,7 @@
 #include "uefi.h"
 #include "utils.h"
 #include "config.h"
+#include "logs.h"
 
 std::wstring fnFindESP()
 {
@@ -19,7 +20,7 @@ std::wstring fnFindESP()
 std::wstring fnMountESP(int nIdxDrive)
 {
     // First, print what drives are available for diagnosis
-    printf("[*] Scanning for free drive letters...\n");
+    fnPrintLog(LEVEL_INFO, L"Scanning for free drive letters...\n");
 
     for (wchar_t c = L'Z'; c >= L'D'; c--)
     {
@@ -29,10 +30,10 @@ std::wstring fnMountESP(int nIdxDrive)
         if (type != DRIVE_NO_ROOT_DIR)
             continue;
 
-        printf("[*] Trying letter %ls...\n", szLetter.c_str());
+        fnPrintLog(LEVEL_INFO, L"Trying letter %ls...\n", szLetter.c_str());
 
         std::wstring szCmd = L"cmd.exe /c mountvol " + szLetter + L" /S";
-        printf("[*] Command: %ls\n", szCmd.c_str());
+        fnPrintLog(LEVEL_INFO, L"[*] Command: %ls\n", szCmd.c_str());
 
         STARTUPINFOW si = {};
         PROCESS_INFORMATION pi = {};
@@ -49,21 +50,21 @@ std::wstring fnMountESP(int nIdxDrive)
             WaitForSingleObject(pi.hProcess, 5000);
             DWORD exit_code = 0;
             GetExitCodeProcess(pi.hProcess, &exit_code);
-            printf("[*] mountvol exit code: %lu\n", exit_code);
+            fnPrintLog(LEVEL_INFO, L"mountvol exit code: %lu\n", exit_code);
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
         }
 
         std::wstring szTest = szLetter + L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi";
-        printf("[*] Checking: %ls\n", szTest.c_str());
+        fnPrintLog(LEVEL_INFO, L"Checking: %ls\n", szTest.c_str());
 
         if (INVALID_FILE_ATTRIBUTES != GetFileAttributesW(szTest.c_str()))
         {
-            printf("[+] ESP mounted at %ls\n", szLetter.c_str());
+            fnPrintLog(LEVEL_GOOD, L"ESP mounted at %ls\n", szLetter.c_str());
             return szLetter;
         }
 
-        printf("[!] Not found at %ls, trying next...\n", szTest.c_str());
+        fnPrintLog(LEVEL_WARN, L"Not found at %ls, trying next...\n", szTest.c_str());
 
         // Unmount failed attempt before trying next letter
         std::wstring szUnmount = L"cmd.exe /c mountvol " + szLetter + L" /D";
@@ -79,7 +80,7 @@ std::wstring fnMountESP(int nIdxDrive)
         }
     }
 
-    printf("[-] All letters exhausted, ESP not found.\n");
+    fnPrintLog(LEVEL_ERROR, L"All letters exhausted, ESP not found.\n");
     return L"";
 }
 
@@ -102,14 +103,14 @@ void fnUnmountESP(const std::wstring& szLetter)
         CloseHandle(pi.hThread);
     }
 
-    printf("ESP is unmount from %ls\n", szLetter.c_str());
+    fnPrintLog(LEVEL_GOOD, L"ESP is unmount from %ls\n", szLetter.c_str());
 
     return;
 }
 
 bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassword, const std::wstring& szDrivePath, UINT64 nTotalSectors)
 {
-    printf("[*] UEFI installation\n");
+    fnPrintLog(LEVEL_INFO, "UEFI installation\n");
 
     // find/mount ESP
     std::wstring szESP = fnFindESP();
@@ -117,67 +118,68 @@ bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassw
     
     if (szESP.empty())
     {
-        printf("ESP not mounted, mounting temporarily...\n");
+        fnPrintLog(LEVEL_WARN, "ESP not mounted, mounting temporarily...\n");
         szESP = fnMountESP(0);
         bMount = true;
     }
 
     if (szESP.empty())
     {
-        fprintf(stderr, "ERROR: Cannot find or mount ESP!\n");
-        fprintf(stderr, "Please try to run this program with adminstrative privilege.\n");
+        fnPrintLog(LEVEL_ERROR, "ERROR: Cannot find or mount ESP!\n");
+        fnPrintLog(LEVEL_ERROR, "Please try to run this program with adminstrative privilege.\n");
+
         return false;
     }
 
-    printf("[*] ESP at: %ls\n", szESP.c_str());
+    fnPrintLog(LEVEL_INFO, "ESP at: %ls\n", szESP.c_str());
 
     std::wstring szBootDir = szESP + L"\\EFI\\Microsoft\\Boot\\";
     std::wstring szOriginalEFI = szBootDir + L"bootmgfw.efi";
     std::wstring szBackupEFI = szBootDir + L"bootmgfw_original.efi";
     std::wstring szTarget = szBootDir + L"bootmgfw.efi";
 
-    printf("[*] Checking original bootmgfw.efi...\n");
+    fnPrintLog(LEVEL_INFO, "Checking original bootmgfw.efi...\n");
     if (!fnbFileExists(szOriginalEFI))
     {
-        fprintf(stderr, "[-] Error: %ls not found!\n", szOriginalEFI.c_str());
+        fnPrintLog(LEVEL_ERROR, "Error: %ls not found!\n", szOriginalEFI.c_str());
         if (bMount)
             fnUnmountESP(szESP);
 
         return false;
     }
 
-    printf("[*] Found: %ls\n", szOriginalEFI.c_str());
+    fnPrintLog(LEVEL_INFO, "Found: %ls\n", szOriginalEFI.c_str());
 
     // backup original (skip if backup already exists)
-    printf("[*] Backing up original bootmgfw.efi...\n");
+    fnPrintLog(LEVEL_INFO, "Backing up original bootmgfw.efi...\n");
     if (!fnbFileExists(szBackupEFI))
     {
         if (!fnbCopyFile(szOriginalEFI, szBackupEFI))
         {
-            fprintf(stderr, "[-] ERROR: Backup failed!\n");
+            fnPrintLog(LEVEL_ERROR, "ERROR: Backup failed!\n");
             if (bMount)
                 fnUnmountESP(szESP);
 
             return false;
         }
 
-        printf("[+] Back up to %ls\n", szBackupEFI.c_str());
+        fnPrintLog(LEVEL_GOOD, "Back up to %ls\n", szBackupEFI.c_str());
     }
     else
     {
-        printf("[!] Backup already exists, skipping.\n");
+        fnPrintLog(LEVEL_WARN, "Backup already exists, skipping.\n");
     }
 
-    printf("[*] Installing custom UEFI bootloader...\n");
+    fnPrintLog(LEVEL_INFO, "Installing custom UEFI bootloader...\n");
     if (!CopyFileW(szSrcEfiPath.c_str(), szTarget.c_str(), FALSE))
     {
-        fprintf(stderr, "[-] ERROR: Install failed (error %lu)\n", GetLastError());
+        fnPrintLog(LEVEL_ERROR, "ERROR: Install failed (error %lu)\n", GetLastError());
         
         // try with explicit overwrite flag
         SetFileAttributesW(szTarget.c_str(), FILE_ATTRIBUTE_NORMAL);
         if (!CopyFileW(szSrcEfiPath.c_str(), szTarget.c_str(), FALSE))
         {
-            fprintf(stderr, "[-] Still failed with explicit overwrite flag :(\n");
+            fnPrintLog(LEVEL_ERROR, "Still failed with explicit overwrite flag :(\n");
             
             if (bMount)
                 fnUnmountESP(szESP);
@@ -186,9 +188,9 @@ bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassw
         }
     }
 
-    printf("[+] Installed: %ls\n", szTarget.c_str());
+    fnPrintLog(LEVEL_GOOD, "Installed: %ls\n", szTarget.c_str());
 
-    printf("[*] Writing metadata sectors...\n");
+    fnPrintLog(LEVEL_INFO, "Writing metadata sectors...\n");
 
     {
         clsDiskHandle disk;
@@ -208,7 +210,7 @@ bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassw
 
         if (!disk.fnbWriteSectors(60, state_sector))
         {
-            fprintf(stderr, "[-] ERROR: state sector write failed!\n");
+            fnPrintLog(LEVEL_ERROR, "ERROR: state sector write failed!\n");
             if (bMount)
                 fnUnmountESP(szESP);
 
@@ -221,11 +223,11 @@ bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassw
         uint32_t rm = *(uint32_t *)abCheck.data();
         uint64_t rs = *(uint64_t *)(abCheck.data() + 8);
 
-        printf("[*] State sector: magic=0x%08X sectors=%llu\n", rm, rs);
+        fnPrintLog(LEVEL_INFO, "State sector: magic=0x%08X sectors=%llu\n", rm, rs);
         
         if (rm != magic)
         {
-            fprintf(stderr, "[-] ERROR: State sector validation is failed!\n");
+            fnPrintLog(LEVEL_ERROR, "ERROR: State sector validation is failed!\n");
             if (bMount)
                 fnUnmountESP(szESP);
 
@@ -252,14 +254,14 @@ bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassw
 
         if (!disk.fnbWriteSectors(PASSWORD_SECTOR, pass_sector))
         {
-            fprintf(stderr, "[-] ERORR: Password sector write failed.\n");
+            fnPrintLog(LEVEL_ERROR, "ERORR: Password sector write failed.\n");
             if (bMount)
                 fnUnmountESP(szESP);
 
             return false;
         }
 
-        printf("[+] Password sector has been written.\n");
+        fnPrintLog(LEVEL_GOOD, "Password sector has been written.\n");
 
         // zero password from memory
         volatile char *p = (volatile char *)szPassword.data();
@@ -268,20 +270,20 @@ bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassw
     }
 
     // unmount if it is mounted
-    printf("[*] Finalizing...\n");
+    fnPrintLog(LEVEL_INFO, "Finalizing...\n");
     
     if (bMount)
         fnUnmountESP(szESP);
 
-    printf("[+] ===== [UEFI Installation is completed!] =====\n");
-    printf("[+] In next boot: Custom EFI application runs first.\n");
+    fnPrintLog(LEVEL_GOOD, "===== [UEFI Installation is completed!] =====\n");
+    fnPrintLog(LEVEL_GOOD, "In next boot: Custom EFI application runs first.\n");
 
     return true;
 }
 
 bool fnbRestoreUEFI()
 {
-    printf("[*] UEFI restore\n");
+    fnPrintLog(LEVEL_INFO, "UEFI restore\n");
 
     std::wstring szESP = fnFindESP();
     bool bMount = false;
@@ -293,7 +295,7 @@ bool fnbRestoreUEFI()
 
     if (szESP.empty())
     {
-        fprintf(stderr, "[-] ERROR: Cannot find ESP\n");
+        fnPrintLog(LEVEL_ERROR, "ERROR: Cannot find ESP\n");
         return false;
     }
 
@@ -303,7 +305,7 @@ bool fnbRestoreUEFI()
 
     if (!fnbFileExists(szBackupPath))
     {
-        fprintf(stderr, "[-] No backup found at %ls\n", szBackupPath.c_str());
+        fnPrintLog(LEVEL_ERROR, "No backup found at %ls\n", szBackupPath.c_str());
         if (bMount)
             fnUnmountESP(szESP);
 
@@ -313,14 +315,14 @@ bool fnbRestoreUEFI()
     SetFileAttributesW(szOriginalEfiPath.c_str(), FILE_ATTRIBUTE_NORMAL);
     if (!CopyFileW(szBackupPath.c_str(), szOriginalEfiPath.c_str(), FALSE))
     {
-        fprintf(stderr, "[-] Restore failed (error %lu)\n", GetLastError());
+        fnPrintLog(LEVEL_ERROR, "Restore failed (error %lu)\n", GetLastError());
         if (bMount)
             fnUnmountESP(szESP);
 
         return false;
     }
 
-    printf("[+] Restore original bootmgfw.efi successfully!\n");
+    fnPrintLog(LEVEL_GOOD, "Restore original bootmgfw.efi successfully!\n");
     if (bMount)
         fnUnmountESP(szESP);
 

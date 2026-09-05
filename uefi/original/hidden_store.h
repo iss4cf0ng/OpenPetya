@@ -5,6 +5,7 @@
 
 #include <efi.h>
 #include <efilib.h>
+#include <string.h>
 
 #include "config.h"
 #include "uefi_io.h"

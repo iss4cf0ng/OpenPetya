@@ -112,7 +112,7 @@ void uefi_set_color(UINTN fore_color, UINTN back_color)
 
 void uefi_sleep_ms(UINTN ms)
 {
-    g_bs->Stall(ms * 1000); // Stall takes microseconds
+    uefi_call_wrapper(g_bs->Stall, 1, ms * 1000);
 }
 
 void uefi_read_password(char *buffer, int max_len)

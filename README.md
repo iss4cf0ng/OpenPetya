@@ -1,6 +1,6 @@
 # OpenPetya
 
-A Proof-of-Concept bootkit inspired by Petya ransomware, written in Assembly, C, and C++
+A Proof-of-Concept bootkit and UEFI boot application inspired by Petya ransomware, written in Assembly, C, and C++
 
 <p align="center">
     <img src="https://iss4cf0ng.github.io/images/meme/Rio/4.png" width=200/>
@@ -23,6 +23,7 @@ The project focuses on:
 - NTFS Master File Table (MFT) encryption
 - Salsa20-based cryptography
 - password validation and restoration workflow
+- UEFI programming
 
 OpenPetya is **NOT** intended to be an exact reimplementation of either Petya or NotPetya. Instead, it is a simplified Proof-of-Concept designed for learning and research purposes.
 
@@ -31,6 +32,8 @@ It is worth mentioning that OpenPetya does not include Command-and-Control (C2) 
 ---
 
 # Project Motivation
+
+## v1.0.0
 
 Over the past few months, I have been studying:
 - malware analysis
@@ -61,9 +64,17 @@ Related articles:
 - [PC Assembly Language Notes](https://iss4cf0ng.github.io/2026/04/21/2026-4-21-PcAsmLang/)
 - [Serious Cryptography Notes](https://iss4cf0ng.github.io/2026/05/16/2026-5-16-SeriousCryptography/)
 
+## v2.0.0
+
+In version 2.0.0, I became curious about how modern bootkits work (as covered in the last several chapters of "Rootkits and Bootkits" by Alex Matrosov, Eugene Rodionov, and Sergey Bratus). Therefore, I decided to study programming EFI applications from scratch. I then found out it was much more difficult than I expected (debugging-wise).
+
+Anyway, after writing some simple EFI applications, I published OpenPetya v2.0.0!
+
 ---
 
 # Features
+
+## v1.0.0
 
 - **Custom MBR**
   
@@ -95,6 +106,12 @@ Related articles:
   - encrypted data is restored
   - the original boot chain is recovered
   - OpenPetya removes itself automatically
+
+## v2.0.0
+
+OpenPetya v2.0.0 does **NOT** include MFT encryption in the custom EFI application (`petya.efi`). It offers a simple login panel and performs chainloading once the password is correct.
+
+I chose not to implement MFT encryption in the EFI application because it could be abused to damage modern Windows operating systems, whereas I implemented it in v1.0.0 since threat actors had already demonstrated it in 2016.
 
 ---
 
@@ -128,34 +145,45 @@ Responsibilities:
 - restoration
 - boot-time interface
 
+## `petya.efi`
+
+The core payload of OpenPetya.
+
+Functions:
+- password validation
+- chainloading
+
 ---
 
 # Workflow
 
-The workflow of OpenPetya is summarized below.
+## BIOS
+
+The workflow of OpenPetya (MBR + Bootloader) is summarized below.
 
 1. Users install OpenPetya using `OpenPetya.exe` and choose a password.
-
 2. The machine is rebooted manually or through the BSOD (via `NtRaiseHardError`) mechanism provided by the installer.
-
 3. During boot, the custom MBR loads the stage-2 payload.
-
 4. The stage-2 payload switches the CPU into Protected Mode.
-
 5. OpenPetya encrypts selected parts of the NTFS Master File Table (MFT).
-
 6. After encryption, the machine reboots again.
-
 7. A boot-time interface prompts the user for the password.
-
 8. If the password is correct:
    - encrypted data is decrypted
    - the original boot chain is restored
    - OpenPetya removes itself automatically
-
 9. Windows boots normally again.
 
 > Unlike the original Petya ransomware, OpenPetya does not attempt to deceive users with fake CHKDSK screens or social engineering behavior. The project is designed purely for educational and research purposes.
+
+## UEFI
+
+The workflow of OpenPetya (UEFI) is summarized below:
+
+1. A boot-time interface prompts the user for the password.
+2. If the password is correct:
+   - the system performs chainloading
+3. Users remove the custom EFI program manually
 
 ---
 
@@ -165,7 +193,7 @@ You can build the project using the commands below.
 
 ```bash
 make            # Build mbr.bin and stage2.bin
-./build.exe     # Build OpenPetya.exe
+./build.sh     # Build OpenPetya.exe
 ```
 
 # Usage
@@ -178,9 +206,19 @@ make            # Build mbr.bin and stage2.bin
 
 The commands below shows how to install custom MBR and stage-2 bootloader (Administrative privilege is required):
 
+Legacy BIOS:
 ```batch
 OpenPetya.exe --list
 OpenPetya.exe --drive 0 --install mbr.bin stage2.bin
+```
+
+UEFI:
+```
+OpenPetya.exe --is-admin
+OpenPetya.exe --firmware
+OpenPetya.exe --uefi-secure
+OpenPetya.exe --drive 0 --uefi-install petya.efi
+OpenPetya.exe --drive 0 --uefi-restore
 ```
 
 # Technical Notes
@@ -230,10 +268,9 @@ The author is **NOT** responsible for any misuse of this software.
 - Improved recovery workflow
 - Better NTFS parsing
 - More accurate Petya behavior simulation
-- UEFI experiments
 - Additional bootkit research
 - Full-screen Graphics Mode
-- Windows 10 support
+- Support Linux
 
 # Thanks
 

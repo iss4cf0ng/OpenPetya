@@ -29,6 +29,8 @@ OpenPetya is **NOT** intended to be an exact reimplementation of either Petya or
 
 It is worth mentioning that OpenPetya does not include Command-and-Control (C2) functionality. In addition, OpenPetya stores plaintext MFT backup data inside hidden sectors after encryption. This behavior is intentionally designed for educational purposes because those features are relatively trival compared to the core bootloader and cryptographic mechanisms implemented in this project. However, you can still modify or remove these features if necessary.
 
+> Note: In version 2.0.0, I chose not to implement it for UEFI out of concern that it might be abused to damage modern Windows operating systems.
+
 ---
 
 # Project Motivation

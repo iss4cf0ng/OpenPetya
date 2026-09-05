@@ -487,7 +487,6 @@ static void uefi_print_centered(const CHAR16 *line1, const CHAR16 *line2)
     UINTN len1 = StrLen(line1);
     UINTN len2 = StrLen(line2);
 
-    // 取得目前 console mode
     mode = g_st->ConOut->Mode->Mode;
 
     status = uefi_call_wrapper(

@@ -65,12 +65,16 @@ Related articles:
 - [Rootkits and Bootkits Notes](https://iss4cf0ng.github.io/2026/04/28/2026-4-28-RootkitAndBootkit/)
 - [PC Assembly Language Notes](https://iss4cf0ng.github.io/2026/04/21/2026-4-21-PcAsmLang/)
 - [Serious Cryptography Notes](https://iss4cf0ng.github.io/2026/05/16/2026-5-16-SeriousCryptography/)
+- [OpenPetya: A Proof-of-Concept of Petya Ransomware](https://iss4cf0ng.github.io/2026/05/23/2026-5-23-OpenPetya/)
 
 ## v2.0.0
 
 In version 2.0.0, I became curious about how modern bootkits work (as covered in the last several chapters of "Rootkits and Bootkits" by Alex Matrosov, Eugene Rodionov, and Sergey Bratus). Therefore, I decided to study programming EFI applications from scratch. I then found out it was much more difficult than I expected (debugging-wise).
 
 Anyway, after writing some simple EFI applications, I published OpenPetya v2.0.0!
+
+Related articles:
+- [OpenPetya v2.0.0: An UEFI Bootkit](https://iss4cf0ng.github.io/2026/09/05/2026-9-5-OpenPetya2-0-0/)
 
 ---
 
@@ -234,7 +238,9 @@ Detailed explanations about:
 - More discussions about Petya and NotPetya
 - How to use undocumented APIs (such as `NtRaiseHardError`)
 
-Are documented in [this article](https://iss4cf0ng.github.io/2026/05/23/2026-5-23-OpenPetya/).
+Are documented in these articles:
+- [OpenPetya: A Proof-of-Concept of Petya Ransomware](https://iss4cf0ng.github.io/2026/05/23/2026-5-23-OpenPetya/)
+- [OpenPetya v2.0.0: An UEFI Bootkit](https://iss4cf0ng.github.io/2026/09/05/2026-9-5-OpenPetya2-0-0/)
 
 # Disclaimer
 

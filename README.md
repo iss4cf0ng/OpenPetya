@@ -261,8 +261,16 @@ The author is **NOT** responsible for any misuse of this software.
 
 ## Screenshots
 
+### Windows 7
+
 <p align="center">
-    <img src="https://iss4cf0ng.github.io/images/article/2026-5-23-OpenPetya/4.png" width=800/>
+    <img src="https://iss4cf0ng.github.io/images/article/2026-5-23-OpenPetya/4.png" width=700/>
+</p>
+
+### Windows 10
+
+<p align="center">
+    <img src="https://iss4cf0ng.github.io/images/article/2026-9-5-OpenPetya2-0-0/2.png" width=700/>
 </p>
 
 ## Runtime Demo

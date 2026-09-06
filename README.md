@@ -257,7 +257,7 @@ Do **NOT** use this project for illegal activities or against systems you do not
 
 The author is **NOT** responsible for any misuse of this software.
 
-# Demonstration (Windows 7)
+# Demonstration
 
 ## Screenshots
 

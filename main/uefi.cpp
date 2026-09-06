@@ -17,7 +17,7 @@ std::wstring fnFindESP()
     return L"";
 }
 
-std::wstring fnMountESP(int nIdxDrive)
+std::wstring fnMountESP()
 {
     // First, print what drives are available for diagnosis
     fnPrintLog(LEVEL_INFO, L"Scanning for free drive letters...\n");
@@ -119,7 +119,7 @@ bool fnbInstallUEFI(const std::wstring& szSrcEfiPath, const std::string& szPassw
     if (szESP.empty())
     {
         fnPrintLog(LEVEL_WARN, "ESP not mounted, mounting temporarily...\n");
-        szESP = fnMountESP(0);
+        szESP = fnMountESP();
         bMount = true;
     }
 
@@ -289,7 +289,7 @@ bool fnbRestoreUEFI()
     bool bMount = false;
     if (szESP.empty())
     {
-        szESP = fnMountESP(0);
+        szESP = fnMountESP();
         bMount = true;
     }
 

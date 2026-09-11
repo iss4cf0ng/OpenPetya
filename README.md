@@ -37,6 +37,7 @@ It is worth mentioning that OpenPetya does not include Command-and-Control (C2) 
 
 | Operating System | Mode |
 | --- | --- |
+| Windows Vista | MBR |
 | Windows 7 | MBR |
 | Windows Server 2016 | UEFI |
 | Windows 10 | UEFI |

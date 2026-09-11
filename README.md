@@ -33,6 +33,17 @@ It is worth mentioning that OpenPetya does not include Command-and-Control (C2) 
 
 ---
 
+# Platforms
+
+| Operating System | Mode |
+| --- | --- |
+| Windows 7 | MBR |
+| Windows Server 2016 | UEFI |
+| Windows 10 | UEFI |
+| Windows 11 | UEFI |
+
+---
+
 # Project Motivation
 
 ## v1.0.0
@@ -267,7 +278,7 @@ The author is **NOT** responsible for any misuse of this software.
     <img src="https://iss4cf0ng.github.io/images/article/2026-5-23-OpenPetya/4.png" width=700/>
 </p>
 
-### Windows 10
+### Windows Server 2016/ 10 / 11
 
 <p align="center">
     <img src="https://iss4cf0ng.github.io/images/article/2026-9-5-OpenPetya2-0-0/2.png" width=700/>
